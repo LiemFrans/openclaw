@@ -1,0 +1,17 @@
+{
+  "id": "chatwoot",
+  "channels": ["chatwoot"],
+  "channelEnvVars": {
+    "chatwoot": [
+      "CHATWOOT_BASE_URL",
+      "CHATWOOT_API_KEY",
+      "CHATWOOT_ACCOUNT_ID",
+      "CHATWOOT_WEBHOOK_SECRET"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

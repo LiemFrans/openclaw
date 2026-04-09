@@ -1,0 +1,35 @@
+{
+  "name": "@openclaw/chatwoot",
+  "version": "2026.4.9",
+  "description": "OpenClaw Chatwoot channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "@openclaw/plugin-sdk": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "minHostVersion": ">=2026.4.9"
+    },
+    "setupEntry": "./setup-entry.ts",
+    "channel": {
+      "id": "chatwoot",
+      "label": "Chatwoot",
+      "selectionLabel": "Chatwoot (Agent Bot)",
+      "detailLabel": "Chatwoot",
+      "docsPath": "/channels/chatwoot",
+      "docsLabel": "chatwoot",
+      "blurb": "connect OpenClaw as an agent bot in Chatwoot.",
+      "aliases": [
+        "sapa"
+      ],
+      "systemImage": "message",
+      "configuredState": {
+        "specifier": "./configured-state",
+        "exportName": "hasChatwootConfiguredState"
+      }
+    }
+  }
+}
