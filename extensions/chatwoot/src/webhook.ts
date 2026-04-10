@@ -18,6 +18,52 @@ const WEBHOOK_BODY_TIMEOUT_MS = 5_000;
 
 // Chatwoot message_type enum: 0=incoming, 1=outgoing, 2=activity, 3=template
 const MESSAGE_TYPE_INCOMING = 0;
+const MESSAGE_TYPE_INCOMING_LABEL = "incoming";
+
+export function isIncomingMessageType(messageType: unknown): boolean {
+  if (messageType === MESSAGE_TYPE_INCOMING || messageType === String(MESSAGE_TYPE_INCOMING)) {
+    return true;
+  }
+  if (typeof messageType !== "string") {
+    return false;
+  }
+  return messageType.trim().toLowerCase() === MESSAGE_TYPE_INCOMING_LABEL;
+}
+
+function normalizeChatwootNumericId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return Math.trunc(parsed);
+}
+
+export function resolveChatwootConversationId(
+  payload: Pick<ChatwootMessageWebhookPayload, "conversation">,
+): number | undefined {
+  // Chatwoot API expects canonical conversation.id in the REST path.
+  // display_id can be non-canonical and may collide across inboxes.
+  return (
+    normalizeChatwootNumericId(payload.conversation?.id) ??
+    normalizeChatwootNumericId(payload.conversation?.display_id)
+  );
+}
+
+export function buildChatwootSessionPeerId(params: { inboxId: string; senderId: string }): string {
+  // Scope direct-chat sessions by inbox so one sender in different inboxes
+  // cannot share the same session/thread state.
+  return `chatwoot:${params.inboxId}:${params.senderId}`;
+}
 
 function getHeader(headers: IncomingMessage["headers"], name: string): string | undefined {
   const value = headers[name];
@@ -150,8 +196,8 @@ export async function handleChatwootWebhook(
     return true;
   }
 
-  // Only process incoming messages (message_type=0), skip outgoing/activity/template
-  if (payload.message_type !== MESSAGE_TYPE_INCOMING) {
+  // Process incoming messages from both numeric (0) and string ("incoming") payload variants.
+  if (!isIncomingMessageType(payload.message_type)) {
     respondJson(res, 200, { status: "ignored", reason: "not an incoming message" });
     return true;
   }
@@ -169,16 +215,22 @@ export async function handleChatwootWebhook(
     return true;
   }
 
-  const conversationId = payload.conversation?.display_id ?? payload.conversation?.id;
+  const conversationId = resolveChatwootConversationId(payload);
   if (!conversationId) {
     respondJson(res, 200, { status: "ignored", reason: "no conversation id" });
     return true;
   }
 
+  const inboxId = String(payload.conversation?.inbox_id ?? "default");
   const senderId = String(payload.sender?.id ?? "unknown");
   const senderName = payload.sender?.name;
-  const from = `chatwoot:${senderId}`;
-  const to = `chatwoot:${conversationId}`;
+  const from = buildChatwootSessionPeerId({ inboxId, senderId });
+  const to = `chatwoot:${inboxId}:${conversationId}`;
+
+  // Each Chatwoot conversation maps to its own session (like WhatsApp groups).
+  // Use conversation-scoped peer with kind "group" so the session key includes
+  // the peer ID, giving each conversation its own isolated session.
+  const conversationPeerId = `chatwoot:${inboxId}:${conversationId}`;
 
   try {
     const core = deps.runtime;
@@ -187,7 +239,7 @@ export async function handleChatwootWebhook(
       cfg,
       channel: "chatwoot",
       accountId: account.accountId,
-      peer: { id: from, kind: "direct" },
+      peer: { id: conversationPeerId, kind: "group" },
     });
 
     const storePath = core.channel.session.resolveStorePath(undefined, {
@@ -202,7 +254,7 @@ export async function handleChatwootWebhook(
       To: to,
       SessionKey: route.sessionKey,
       AccountId: route.accountId,
-      ChatType: "direct" as const,
+      ChatType: "group" as const,
       SenderName: senderName,
       SenderId: senderId,
       Provider: "chatwoot" as const,
@@ -217,8 +269,6 @@ export async function handleChatwootWebhook(
       baseUrl: account.baseUrl,
       apiKey: account.apiKey,
     });
-    const convId = Number(conversationId);
-
     await dispatchInboundReplyWithBase({
       cfg,
       channel: "chatwoot",
@@ -231,7 +281,7 @@ export async function handleChatwootWebhook(
         await deliverFormattedTextWithAttachments({
           payload,
           send: async ({ text }) => {
-            await client.sendMessage(account.chatwootAccountId, convId, text);
+            await client.sendMessage(account.chatwootAccountId, conversationId, text);
           },
         });
       },
