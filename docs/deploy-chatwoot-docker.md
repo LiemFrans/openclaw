@@ -202,7 +202,17 @@ jq --arg t "$TOKEN" '.gateway.auth.token = $t' config/openclaw.json > config/tmp
 | `accountId`     | Chatwoot account ID (visible in URL: `/app/accounts/ACCOUNT_ID/...`)    |
 | `webhookSecret` | Optional HMAC secret for webhook signature verification                 |
 
-### 2.7 Start the gateway
+### 2.7 Fix volume permissions
+
+The container runs as user `node` (uid 1000). The mounted volumes must be owned by this uid:
+
+```bash
+sudo chown -R 1000:1000 ./config ./workspace
+```
+
+> **Without this step**, the gateway will fail with `EACCES: permission denied` errors when writing config, canvas, workspace state, and plugin data.
+
+### 2.8 Start the gateway
 
 ```bash
 sudo docker compose up -d
@@ -358,11 +368,196 @@ sudo ufw allow 'Nginx Full'
 sudo ufw status
 ```
 
+### 3.7 Configure allowed origins and trusted proxies
+
+After setting up Nginx, the gateway needs to know about the HTTPS origin and Docker proxy:
+
+```bash
+# Allow the HTTPS origin for the Control UI
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.controlUi.allowedOrigins \
+  '["http://localhost:18789","http://127.0.0.1:18789","https://oc.antive.id"]'
+
+# Trust Docker bridge network so proxy headers (X-Forwarded-For) are recognized
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.trustedProxies \
+  '["172.19.0.0/16","172.17.0.0/16"]'
+```
+
+The gateway will auto-restart when it detects config changes. If it doesn't:
+
+```bash
+sudo docker compose restart
+```
+
+> **Without `trustedProxies`**, the gateway logs `Proxy headers detected from untrusted address` and refuses to treat Nginx-forwarded connections as local.
+
+### 3.8 Access the Control UI
+
+Open `https://oc.antive.id` in your browser. You will be prompted for the **Gateway Token** (the value of `OPENCLAW_GATEWAY_TOKEN` from your `.env` file).
+
+**If you see "pairing required":**
+
+The Control UI requires a secure context (HTTPS) for device identity. If Nginx+SSL is set up correctly, `https://oc.antive.id` should work.
+
+For **temporary plain HTTP access** (testing only, not recommended for production):
+
+```bash
+# Allow insecure token-only auth (no device identity)
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.controlUi.allowInsecureAuth true
+
+# Break-glass: disable device identity check entirely
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+```
+
+> **Security warning:** These flags send the token in plaintext and remove device pairing. Disable them once HTTPS is working:
+>
+> ```bash
+> sudo docker compose exec openclaw-gateway \
+>   openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth false
+> sudo docker compose exec openclaw-gateway \
+>   openclaw config set gateway.controlUi.allowInsecureAuth false
+> ```
+
+**Alternative: SSH Tunnel (quick, no SSL needed):**
+
+```bash
+# From your local machine
+ssh -L 18789:127.0.0.1:18789 sapa@your-server
+
+# Then open http://localhost:18789 in your browser
+# (localhost is a secure context, so device identity works)
+```
+
 ---
 
-## Phase 4: Configure Chatwoot Agent Bot
+## Phase 4: Configure Model Provider
 
-### 4.1 Set the webhook URL in Chatwoot
+The gateway needs a model provider to generate AI responses. By default it uses `openai/gpt-5.4`.
+
+### 4.1 Configure OpenAI
+
+The provider config requires all fields at once. Edit the config JSON directly:
+
+```bash
+sudo nano /opt/app/openclaw-dev/config/openclaw.json
+```
+
+Add the `models` and `agents` sections (merge with existing config):
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "openai/gpt-5-nano"
+    }
+  },
+  "models": {
+    "providers": {
+      "openai": {
+        "baseUrl": "https://api.openai.com/v1",
+        "apiKey": "sk-proj-YOUR_OPENAI_API_KEY",
+        "request": {},
+        "models": [
+          {
+            "id": "gpt-5-nano",
+            "name": "GPT-5 Nano"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+> **Important:** Merge these keys into your existing `openclaw.json`. Do not replace the entire file. Make sure the JSON is valid (no missing commas between sections).
+
+After editing, fix permissions and restart:
+
+```bash
+sudo chown 1000:1000 /opt/app/openclaw-dev/config/openclaw.json
+sudo docker compose restart
+```
+
+Verify the model is picked up:
+
+```bash
+sudo docker compose logs --tail 20 | grep "agent model"
+# Expected: [gateway] agent model: openai/gpt-5-nano
+```
+
+### 4.2 Configure Ollama (self-hosted alternative)
+
+If you prefer a self-hosted model instead of OpenAI:
+
+```bash
+# Install Ollama on the host
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.1
+
+# Ollama must listen on all interfaces (not just localhost)
+sudo systemctl edit ollama
+# Add:
+#   [Service]
+#   Environment="OLLAMA_HOST=0.0.0.0"
+sudo systemctl restart ollama
+```
+
+Add `extra_hosts` to `docker-compose.yml` so the container can reach the host:
+
+```yaml
+services:
+  openclaw-gateway:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # ... rest of config
+```
+
+Then configure in `openclaw.json`:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "ollama/llama3.1"
+    }
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://host.docker.internal:11434",
+        "request": {},
+        "models": [
+          {
+            "id": "llama3.1",
+            "name": "Llama 3.1"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### 4.3 Config key reference
+
+| Config path                        | Description                     | Example                                        |
+| ---------------------------------- | ------------------------------- | ---------------------------------------------- |
+| `agents.defaults.model`            | Default agent model             | `openai/gpt-5-nano`                            |
+| `models.providers.<name>.baseUrl`  | Provider API endpoint           | `https://api.openai.com/v1`                    |
+| `models.providers.<name>.apiKey`   | Provider API key                | `sk-proj-...`                                  |
+| `models.providers.<name>.request`  | Request overrides (can be `{}`) | `{}`                                           |
+| `models.providers.<name>.models`   | Array of model definitions      | `[{"id": "gpt-5-nano", "name": "GPT-5 Nano"}]` |
+| `gateway.controlUi.allowedOrigins` | Allowed Control UI origins      | `["https://oc.antive.id"]`                     |
+| `gateway.trustedProxies`           | Trusted proxy CIDRs             | `["172.19.0.0/16"]`                            |
+
+---
+
+## Phase 5: Configure Chatwoot Agent Bot
+
+### 5.1 Set the webhook URL in Chatwoot
 
 In your Chatwoot/Sapa admin panel:
 
@@ -374,14 +569,14 @@ In your Chatwoot/Sapa admin panel:
    - **Webhook URL:** `https://oc.antive.id/chatwoot/webhook`
 4. Click **Create Bot**
 
-### 4.2 Assign the bot to an inbox
+### 5.2 Assign the bot to an inbox
 
 1. Go to **Settings > Inboxes**
 2. Select the inbox you want the bot to handle
 3. Under **Agent Bot**, select `Openclaw`
 4. Save
 
-### 4.3 Verify the webhook
+### 5.3 Verify the webhook
 
 Send a test message through the inbox. Check logs:
 
@@ -417,14 +612,128 @@ sudo docker compose up -d
 
 ## Troubleshooting
 
+### Startup errors
+
+**EACCES: permission denied (mkdir, open):**
+
+The container runs as user `node` (uid 1000). Volume directories must be owned by that uid:
+
+```bash
+sudo chown -R 1000:1000 ./config ./workspace
+sudo docker compose down && sudo docker compose up -d
+```
+
+**Config invalid / JSON5 parse failed:**
+
+Invalid JSON in `openclaw.json`. Common causes:
+
+- Missing comma between sections (e.g. after `"meta": { ... }` before `"models": { ... }`)
+- Trailing commas in arrays/objects
+
+Validate before restarting:
+
+```bash
+sudo python3 -c "import json; json.load(open('/opt/app/openclaw-dev/config/openclaw.json'))"
+```
+
+If the container is in a crash loop, use `docker compose down && docker compose up -d` instead of `restart`.
+
+**Container exits immediately:**
+
+Check logs: `sudo docker compose logs openclaw-gateway`. Most common cause is invalid JSON in config.
+
+### Control UI access
+
+**"origin not allowed":**
+
+The browser origin is not in the allowlist. Add it:
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.controlUi.allowedOrigins \
+  '["http://localhost:18789","http://127.0.0.1:18789","https://oc.antive.id"]'
+```
+
+> Watch for typos like `http://http://...` (double protocol).
+
+**"control ui requires device identity (use HTTPS or localhost secure context)":**
+
+The Control UI needs a secure context for device identity crypto. Solutions:
+
+1. **HTTPS via Nginx** (recommended) -- see Phase 3
+2. **SSH tunnel:** `ssh -L 18789:127.0.0.1:18789 sapa@server` then open `http://localhost:18789`
+3. **Break-glass flags** (testing only):
+   ```bash
+   sudo docker compose exec openclaw-gateway \
+     openclaw config set gateway.controlUi.allowInsecureAuth true
+   sudo docker compose exec openclaw-gateway \
+     openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+   ```
+
+**"pairing required":**
+
+Usually caused by `dangerouslyDisableDeviceAuth` being `false` while accessing via non-localhost. Set it to `true` for HTTP testing or use HTTPS.
+
+**"Proxy headers detected from untrusted address":**
+
+Nginx forwards requests through Docker bridge network. Add trusted proxies:
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  openclaw config set gateway.trustedProxies \
+  '["172.19.0.0/16","172.17.0.0/16"]'
+```
+
+### Model provider
+
+**"No API key found for provider openai":**
+
+No OpenAI API key configured. Add the full `models.providers.openai` block to `openclaw.json` (see Phase 4).
+
+**Config validation: "Unrecognized key" or "expected string/array, received undefined":**
+
+The provider schema requires `baseUrl`, `request`, and `models` fields all at once. You cannot set them one at a time via CLI. Edit `openclaw.json` directly and add the full provider block.
+
+| Wrong path                | Correct path                     |
+| ------------------------- | -------------------------------- |
+| `providers.openai.apiKey` | `models.providers.openai.apiKey` |
+| `ai.model`                | `agents.defaults.model`          |
+
+### Webhook
+
 **Webhook returns 503 "not configured":**
+
 Check `config/openclaw.json` has valid `baseUrl`, `apiKey`, and `accountId` under `channels.chatwoot`.
 
 **Webhook returns 401 "Unauthorized":**
-The HMAC signature verification failed. Verify `webhookSecret` matches what Chatwoot sends, or remove it to skip verification.
 
-**Container exits immediately:**
-Check logs with `sudo docker compose logs openclaw-gateway`. Common cause: invalid JSON in `config/openclaw.json`.
+HMAC signature verification failed. Verify `webhookSecret` matches Chatwoot, or set it to `""` to skip verification.
+
+### Network
 
 **Port conflict with existing container:**
-The existing `zeroclaw` container uses port 3100. OpenClaw uses 18789 by default, so there should be no conflict. If needed, change `OPENCLAW_GATEWAY_PORT` in `.env`.
+
+OpenClaw uses 18789 by default. Change `OPENCLAW_GATEWAY_PORT` in `.env` if needed.
+
+### Useful commands
+
+```bash
+# Enter the gateway container shell
+sudo docker compose exec openclaw-gateway bash
+
+# Run OpenClaw CLI inside the container
+sudo docker compose exec openclaw-gateway openclaw channels status
+sudo docker compose exec openclaw-gateway openclaw config get channels.chatwoot
+
+# View current config
+sudo cat /opt/app/openclaw-dev/config/openclaw.json
+
+# Validate JSON
+sudo python3 -c "import json; json.load(open('/opt/app/openclaw-dev/config/openclaw.json'))" && echo 'Valid JSON'
+
+# Full restart (clears crash loops)
+sudo docker compose down && sudo docker compose up -d
+
+# View live logs
+sudo docker compose logs -f --tail 50
+```
