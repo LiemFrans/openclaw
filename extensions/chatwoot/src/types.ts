@@ -90,7 +90,7 @@ export type ChatwootMessageWebhookPayload = {
   content_attributes?: Record<string, unknown>;
   conversation: ChatwootConversationPayload;
   inbox?: { id: number; name?: string };
-  message_type?: number;
+  message_type?: number | string;
   private?: boolean;
   sender?: ChatwootSender;
   source_id?: string;
