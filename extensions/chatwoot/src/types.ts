@@ -4,9 +4,29 @@ import type {
   ContextVisibilityMode,
   BlockStreamingCoalesceConfig,
   DmConfig,
+  MarkdownConfig,
   OpenClawConfig,
   BaseProbeResult,
 } from "./runtime-api.js";
+
+export type ChatwootActionConfig = {
+  /** Allow agent to send emoji reactions. */
+  reactions?: boolean;
+  /** Allow agent to send messages. */
+  sendMessage?: boolean;
+  /** Allow agent to create polls. */
+  polls?: boolean;
+};
+
+export type ChatwootHeartbeatConfig = {
+  showOk?: boolean;
+  showAlerts?: boolean;
+  useIndicator?: boolean;
+};
+
+export type ChatwootHealthMonitorConfig = {
+  enabled?: boolean;
+};
 
 export type ChatwootAckReactionConfig = {
   /** Emoji to use for acknowledgment (e.g., "👀"). Empty = disabled. */
@@ -70,11 +90,23 @@ export type ChatwootAccountConfig = {
   groups?: Record<string, ChatwootGroupConfig>;
   /** Supplemental context visibility policy. */
   contextVisibility?: ContextVisibilityMode;
+  /** Provider capability tags. */
+  capabilities?: string[];
+  /** Markdown formatting overrides. */
+  markdown?: MarkdownConfig;
+  /** Heartbeat visibility settings. */
+  heartbeat?: ChatwootHeartbeatConfig;
+  /** Channel health monitor overrides. */
+  healthMonitor?: ChatwootHealthMonitorConfig;
 };
 
 export type ChatwootConfig = ChatwootAccountConfig & {
   accounts?: Record<string, ChatwootAccountConfig>;
   defaultAccount?: string;
+  /** Action gating for agent tools. */
+  actions?: ChatwootActionConfig;
+  /** Allow config writes from chat. */
+  configWrites?: boolean;
 };
 
 export type CoreConfig = OpenClawConfig & {
