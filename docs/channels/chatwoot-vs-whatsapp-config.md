@@ -55,12 +55,12 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 
 ## Reactions
 
-| Setting         | Chatwoot | WhatsApp                                            |
-| --------------- | -------- | --------------------------------------------------- |
-| `reactionLevel` | —        | `"off"` / `"ack"` / `"minimal"` / `"extensive"`     |
-| `ackReaction`   | —        | Emoji, direct (bool), group (always/mentions/never) |
+| Setting         | Chatwoot                                            | WhatsApp                                            |
+| --------------- | --------------------------------------------------- | --------------------------------------------------- |
+| `reactionLevel` | `"off"` / `"ack"` / `"minimal"` / `"extensive"`     | `"off"` / `"ack"` / `"minimal"` / `"extensive"`     |
+| `ackReaction`   | Emoji, direct (bool), group (always/mentions/never) | Emoji, direct (bool), group (always/mentions/never) |
 
-**Key difference:** WhatsApp supports native emoji reactions on messages. Chatwoot does not have a reaction mechanism, so these settings do not apply.
+**Key difference:** Both channels now support the same reaction configuration. Actual reaction delivery depends on the platform's capabilities — Chatwoot may not render emoji reactions the same way as WhatsApp native reactions.
 
 ---
 
@@ -132,13 +132,13 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Connection/Auth      |         4         |    1 (authDir)    |
 | Access Control       |         8         |         7         |
 | Message Delivery     |         8         |         8         |
-| Reactions            |         0         |         2         |
+| Reactions            |         2         |         2         |
 | Media                |         0         |         1         |
 | Session/History      |         0         |         3         |
 | Multi-Account        |         4         |         4         |
 | Actions/Tools        |         0         |         4         |
 | Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **24**       |      **34**       |
+| **Total unique**     |      **26**       |      **34**       |
 
 ---
 
