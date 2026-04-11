@@ -537,3 +537,74 @@ describe("ChatwootConfigSchema – session and history", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("ChatwootConfigSchema – actions and advanced", () => {
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("accepts actions with all sub-fields", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      actions: { reactions: true, sendMessage: true, polls: false },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects actions with unknown sub-fields", () => {
+    expect(ChatwootConfigSchema.safeParse({ actions: { unknown: true } }).success).toBe(false);
+  });
+
+  it("accepts configWrites boolean", () => {
+    expect(ChatwootConfigSchema.safeParse({ configWrites: true }).success).toBe(true);
+    expect(ChatwootConfigSchema.safeParse({ configWrites: false }).success).toBe(true);
+  });
+
+  it("accepts capabilities string array", () => {
+    const result = ChatwootConfigSchema.safeParse({ capabilities: ["vision", "audio"] });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts markdown config", () => {
+    const result = ChatwootConfigSchema.safeParse({ markdown: { tables: "bullets" } });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects markdown with unknown sub-fields", () => {
+    expect(ChatwootConfigSchema.safeParse({ markdown: { unknown: true } }).success).toBe(false);
+  });
+
+  it("accepts heartbeat config", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      heartbeat: { showOk: true, showAlerts: false, useIndicator: true },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects heartbeat with unknown sub-fields", () => {
+    expect(ChatwootConfigSchema.safeParse({ heartbeat: { unknown: true } }).success).toBe(false);
+  });
+
+  it("accepts healthMonitor config", () => {
+    const result = ChatwootConfigSchema.safeParse({ healthMonitor: { enabled: true } });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects healthMonitor with unknown sub-fields", () => {
+    expect(ChatwootConfigSchema.safeParse({ healthMonitor: { unknown: true } }).success).toBe(
+      false,
+    );
+  });
+
+  it("actions and configWrites are root-only (not in accounts)", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      actions: { reactions: true },
+      configWrites: true,
+      accounts: {
+        main: { baseUrl: "https://example.com" },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
