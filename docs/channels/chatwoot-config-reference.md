@@ -297,6 +297,52 @@ Override the prefix prepended to outbound responses.
 
 ---
 
+## Reactions
+
+### `reactionLevel`
+
+Controls the verbosity of emoji reactions the bot sends on messages.
+
+| Value         | Description                                         |
+| ------------- | --------------------------------------------------- |
+| `"off"`       | No reactions                                        |
+| `"ack"`       | Acknowledgment reaction only (processing indicator) |
+| `"minimal"`   | Acknowledge + key status reactions                  |
+| `"extensive"` | React to most events                                |
+
+- **Type:** `string` enum
+- **Default:** not set
+
+### `ackReaction`
+
+Configuration for the acknowledgment reaction sent when the bot starts processing a message.
+
+- **Type:** `object`
+- **Default:** `{ direct: true, group: "mentions" }`
+
+| Sub-field | Type                                  | Default      | Description                                   |
+| --------- | ------------------------------------- | ------------ | --------------------------------------------- |
+| `emoji`   | `string`                              | —            | Emoji to use (e.g., `"👀"`). Empty = disabled |
+| `direct`  | `boolean`                             | `true`       | Send ack reaction in direct chats             |
+| `group`   | `"always"` / `"mentions"` / `"never"` | `"mentions"` | When to react in group chats                  |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      reactionLevel: "ack",
+      ackReaction: {
+        emoji: "👀",
+        direct: true,
+        group: "mentions",
+      },
+    },
+  },
+}
+```
+
+---
+
 ## Account Management
 
 ### `name`
@@ -771,6 +817,8 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 | `sendReadReceipts`       | `boolean`                 | —             | channel, account | Send read receipts for incoming messages                   |
 | `messagePrefix`          | `string`                  | —             | channel, account | Inbound message prefix override                            |
 | `responsePrefix`         | `string`                  | —             | channel, account | Outbound response prefix override                          |
+| `reactionLevel`          | `string` enum             | —             | channel, account | Reaction verbosity (`off`/`ack`/`minimal`/`extensive`)     |
+| `ackReaction`            | `object`                  | see below     | channel, account | Acknowledgment reaction config                             |
 | `name`                   | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
 | `enabled`                | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
 | `accounts`               | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
