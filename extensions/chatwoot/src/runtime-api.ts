@@ -11,6 +11,7 @@ export type {
   ContextVisibilityMode,
   BlockStreamingCoalesceConfig,
   DmConfig,
+  MarkdownConfig,
 } from "openclaw/plugin-sdk/config-runtime";
 export type { OutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
 export { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
