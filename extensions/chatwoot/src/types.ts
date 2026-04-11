@@ -51,6 +51,8 @@ export type ChatwootAccountConfig = {
   reactionLevel?: "off" | "ack" | "minimal" | "extensive";
   /** Acknowledgment reaction config. */
   ackReaction?: ChatwootAckReactionConfig;
+  /** Max media file size in MB. */
+  mediaMaxMb?: number;
   /** Same-phone setup (bot uses your personal number). */
   selfChatMode?: boolean;
   /** Group message policy (default: allowlist). */
