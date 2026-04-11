@@ -76,13 +76,13 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 
 ## Session and History
 
-| Setting          | Chatwoot | WhatsApp                                              |
-| ---------------- | -------- | ----------------------------------------------------- |
-| `historyLimit`   | —        | Max group messages buffered for context (default: 50) |
-| `dmHistoryLimit` | —        | Max DM turns for history context                      |
-| `dms`            | —        | Per-DM config overrides (keyed by user ID)            |
+| Setting          | Chatwoot                                   | WhatsApp                                              |
+| ---------------- | ------------------------------------------ | ----------------------------------------------------- |
+| `historyLimit`   | Max group messages buffered for context    | Max group messages buffered for context (default: 50) |
+| `dmHistoryLimit` | Max DM turns for history context           | Max DM turns for history context                      |
+| `dms`            | Per-DM config overrides (keyed by user ID) | Per-DM config overrides (keyed by user ID)            |
 
-**Key difference:** WhatsApp manages its own message history buffer for context injection. Chatwoot conversation history is managed by Chatwoot and accessible via its API.
+**Key difference:** Both channels support the same history and per-DM configuration model. Chatwoot conversation history is also accessible via the Chatwoot API for additional context.
 
 ---
 
@@ -134,11 +134,11 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Message Delivery     |         8         |         8         |
 | Reactions            |         2         |         2         |
 | Media                |         1         |         1         |
-| Session/History      |         0         |         3         |
+| Session/History      |         3         |         3         |
 | Multi-Account        |         4         |         4         |
 | Actions/Tools        |         0         |         4         |
 | Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **27**       |      **34**       |
+| **Total unique**     |      **30**       |      **34**       |
 
 ---
 
