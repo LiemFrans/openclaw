@@ -1,4 +1,16 @@
-import type { DmPolicy, OpenClawConfig, BaseProbeResult } from "./runtime-api.js";
+import type {
+  DmPolicy,
+  GroupPolicy,
+  ContextVisibilityMode,
+  OpenClawConfig,
+  BaseProbeResult,
+} from "./runtime-api.js";
+
+export type ChatwootGroupConfig = {
+  requireMention?: boolean;
+  tools?: { allow?: string[]; alsoAllow?: string[]; deny?: string[] };
+  toolsBySender?: Record<string, { allow?: string[]; alsoAllow?: string[]; deny?: string[] }>;
+};
 
 export type ChatwootAccountConfig = {
   name?: string;
@@ -11,9 +23,22 @@ export type ChatwootAccountConfig = {
   allowFrom?: Array<string | number>;
   defaultTo?: string;
   blockStreaming?: boolean;
+  /** Same-phone setup (bot uses your personal number). */
+  selfChatMode?: boolean;
+  /** Group message policy (default: allowlist). */
+  groupPolicy?: GroupPolicy;
+  /** Allowlist for group senders. */
+  groupAllowFrom?: Array<string | number>;
+  /** Per-group config overrides keyed by group ID. */
+  groups?: Record<string, ChatwootGroupConfig>;
+  /** Supplemental context visibility policy. */
+  contextVisibility?: ContextVisibilityMode;
 };
 
-export type ChatwootConfig = ChatwootAccountConfig;
+export type ChatwootConfig = ChatwootAccountConfig & {
+  accounts?: Record<string, ChatwootAccountConfig>;
+  defaultAccount?: string;
+};
 
 export type CoreConfig = OpenClawConfig & {
   channels?: OpenClawConfig["channels"] & {

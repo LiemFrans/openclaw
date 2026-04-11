@@ -1,8 +1,25 @@
 import {
+  AllowFromListSchema,
+  ContextVisibilityModeSchema,
   DmPolicySchema,
+  GroupPolicySchema,
+  ToolPolicySchema,
   buildChannelConfigSchema,
 } from "openclaw/plugin-sdk/channel-config-schema";
 import { z } from "openclaw/plugin-sdk/zod";
+
+const ToolPolicyBySenderSchema = z.record(z.string(), ToolPolicySchema).optional();
+
+const ChatwootGroupEntrySchema = z
+  .object({
+    requireMention: z.boolean().optional(),
+    tools: ToolPolicySchema,
+    toolsBySender: ToolPolicyBySenderSchema,
+  })
+  .strict()
+  .optional();
+
+const ChatwootGroupsSchema = z.record(z.string(), ChatwootGroupEntrySchema).optional();
 
 export const ChatwootAccountSchemaBase = z
   .object({
@@ -16,6 +33,11 @@ export const ChatwootAccountSchemaBase = z
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     defaultTo: z.string().optional(),
     blockStreaming: z.boolean().optional(),
+    selfChatMode: z.boolean().optional(),
+    groupPolicy: GroupPolicySchema.optional().default("allowlist"),
+    groupAllowFrom: AllowFromListSchema,
+    groups: ChatwootGroupsSchema,
+    contextVisibility: ContextVisibilityModeSchema.optional(),
   })
   .strict();
 
