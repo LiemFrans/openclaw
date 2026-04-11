@@ -5,7 +5,11 @@ export type { BaseProbeResult } from "openclaw/plugin-sdk/channel-contract";
 export type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 export type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 export type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
-export type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
+export type {
+  DmPolicy,
+  GroupPolicy,
+  ContextVisibilityMode,
+} from "openclaw/plugin-sdk/config-runtime";
 export type { OutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
 export { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 export { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-config-primitives";

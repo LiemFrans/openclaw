@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
   buildChatwootSessionPeerId,
   buildDescriptiveChatwootPeerId,
@@ -285,5 +285,72 @@ describe("buildDescriptiveChatwootPeerId", () => {
         inboxName: "Telegram Bot",
       }),
     ).toBe("chatwoot:5:500");
+  });
+});
+
+describe("ChatwootConfigSchema – access control", () => {
+  // Import lazily to keep static module graph light
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("accepts minimal config and applies defaults", () => {
+    const result = ChatwootConfigSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.dmPolicy).toBe("open");
+      expect(result.data.groupPolicy).toBe("allowlist");
+    }
+  });
+
+  it("accepts selfChatMode boolean", () => {
+    const result = ChatwootConfigSchema.safeParse({ selfChatMode: true });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts groupPolicy enum values", () => {
+    for (const value of ["open", "disabled", "allowlist"]) {
+      const result = ChatwootConfigSchema.safeParse({ groupPolicy: value });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects invalid groupPolicy", () => {
+    const result = ChatwootConfigSchema.safeParse({ groupPolicy: "invalid" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts groupAllowFrom with mixed types", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      groupAllowFrom: ["+15551234567", 42],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts groups record with sub-entries", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      groups: {
+        "120363012345678901@g.us": {
+          requireMention: true,
+          tools: { allow: ["web_search"] },
+        },
+        "*": {},
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts contextVisibility enum values", () => {
+    for (const value of ["all", "allowlist", "allowlist_quote"]) {
+      const result = ChatwootConfigSchema.safeParse({ contextVisibility: value });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects unknown fields in strict mode", () => {
+    const result = ChatwootConfigSchema.safeParse({ unknownField: true });
+    expect(result.success).toBe(false);
   });
 });

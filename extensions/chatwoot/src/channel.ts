@@ -46,7 +46,7 @@ export const chatwootPlugin: ChannelPlugin<ResolvedChatwootAccount, ChatwootProb
       setup: chatwootSetupAdapter,
       setupWizard: chatwootSetupWizard,
       capabilities: {
-        chatTypes: ["direct"],
+        chatTypes: ["direct", "group"],
         media: true,
         blockStreaming: true,
       },
