@@ -162,9 +162,10 @@ export type ChatwootAttachment = {
 
 export type ChatwootConversationPayload = {
   id: number;
-  display_id: number;
+  /** display_id may be absent in Agent Bot webhook payloads. */
+  display_id?: number;
   inbox_id: number;
-  status: string;
+  status?: string;
   assignee_id?: number | null;
   contact?: {
     id: number;
