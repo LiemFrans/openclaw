@@ -7,6 +7,15 @@ import type {
   BaseProbeResult,
 } from "./runtime-api.js";
 
+export type ChatwootAckReactionConfig = {
+  /** Emoji to use for acknowledgment (e.g., "👀"). Empty = disabled. */
+  emoji?: string;
+  /** Send reactions in direct chats. Default: true. */
+  direct?: boolean;
+  /** Send reactions in group chats: "always" | "mentions" | "never". Default: "mentions". */
+  group?: "always" | "mentions" | "never";
+};
+
 export type ChatwootGroupConfig = {
   requireMention?: boolean;
   tools?: { allow?: string[]; alsoAllow?: string[]; deny?: string[] };
@@ -38,6 +47,10 @@ export type ChatwootAccountConfig = {
   messagePrefix?: string;
   /** Outbound response prefix override. */
   responsePrefix?: string;
+  /** Reaction verbosity level. */
+  reactionLevel?: "off" | "ack" | "minimal" | "extensive";
+  /** Acknowledgment reaction config. */
+  ackReaction?: ChatwootAckReactionConfig;
   /** Same-phone setup (bot uses your personal number). */
   selfChatMode?: boolean;
   /** Group message policy (default: allowlist). */

@@ -421,3 +421,47 @@ describe("ChatwootConfigSchema – message delivery", () => {
     expect(ChatwootConfigSchema.safeParse({ debounceMs: -5 }).success).toBe(false);
   });
 });
+
+describe("ChatwootConfigSchema – reactions", () => {
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("accepts reactionLevel enum values", () => {
+    for (const level of ["off", "ack", "minimal", "extensive"]) {
+      expect(ChatwootConfigSchema.safeParse({ reactionLevel: level }).success).toBe(true);
+    }
+  });
+
+  it("rejects invalid reactionLevel", () => {
+    expect(ChatwootConfigSchema.safeParse({ reactionLevel: "full" }).success).toBe(false);
+  });
+
+  it("accepts ackReaction with defaults", () => {
+    const result = ChatwootConfigSchema.safeParse({ ackReaction: {} });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.ackReaction?.direct).toBe(true);
+      expect(result.data.ackReaction?.group).toBe("mentions");
+    }
+  });
+
+  it("accepts ackReaction with all fields", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      ackReaction: { emoji: "\ud83d\udc40", direct: false, group: "always" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects ackReaction with invalid group value", () => {
+    expect(ChatwootConfigSchema.safeParse({ ackReaction: { group: "sometimes" } }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects ackReaction with unknown sub-fields", () => {
+    expect(ChatwootConfigSchema.safeParse({ ackReaction: { unknown: true } }).success).toBe(false);
+  });
+});
