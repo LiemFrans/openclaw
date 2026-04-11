@@ -354,3 +354,70 @@ describe("ChatwootConfigSchema – access control", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("ChatwootConfigSchema – message delivery", () => {
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("applies debounceMs default of 0", () => {
+    const result = ChatwootConfigSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.debounceMs).toBe(0);
+    }
+  });
+
+  it("accepts blockStreamingCoalesce with all sub-fields", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      blockStreamingCoalesce: { minChars: 100, maxChars: 2000, idleMs: 500 },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects blockStreamingCoalesce with unknown sub-fields", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      blockStreamingCoalesce: { minChars: 100, unknown: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts textChunkLimit positive integer", () => {
+    const result = ChatwootConfigSchema.safeParse({ textChunkLimit: 4000 });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects textChunkLimit zero or negative", () => {
+    expect(ChatwootConfigSchema.safeParse({ textChunkLimit: 0 }).success).toBe(false);
+    expect(ChatwootConfigSchema.safeParse({ textChunkLimit: -1 }).success).toBe(false);
+  });
+
+  it("accepts chunkMode enum values", () => {
+    for (const mode of ["length", "newline"]) {
+      expect(ChatwootConfigSchema.safeParse({ chunkMode: mode }).success).toBe(true);
+    }
+  });
+
+  it("rejects invalid chunkMode", () => {
+    expect(ChatwootConfigSchema.safeParse({ chunkMode: "words" }).success).toBe(false);
+  });
+
+  it("accepts sendReadReceipts boolean", () => {
+    expect(ChatwootConfigSchema.safeParse({ sendReadReceipts: true }).success).toBe(true);
+    expect(ChatwootConfigSchema.safeParse({ sendReadReceipts: false }).success).toBe(true);
+  });
+
+  it("accepts string prefixes", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      messagePrefix: "[user]",
+      responsePrefix: "[bot]",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects debounceMs negative", () => {
+    expect(ChatwootConfigSchema.safeParse({ debounceMs: -5 }).success).toBe(false);
+  });
+});
