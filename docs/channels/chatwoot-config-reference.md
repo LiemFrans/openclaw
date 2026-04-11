@@ -364,6 +364,50 @@ Maximum media file size in megabytes. Files exceeding this limit are rejected.
 
 ---
 
+## Session and History
+
+### `historyLimit`
+
+Maximum number of group messages buffered for context. Controls how many recent messages are included when building conversation context for the model.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** not set
+
+### `dmHistoryLimit`
+
+Maximum number of DM turns for history context.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** not set
+
+### `dms`
+
+Per-DM configuration overrides, keyed by user/contact identifier. Each entry supports a subset of DM-specific settings.
+
+- **Type:** `Record<string, DmConfig>`
+
+Each DM entry supports:
+
+| Field          | Type     | Description            |
+| -------------- | -------- | ---------------------- |
+| `historyLimit` | `number` | Override history limit |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      historyLimit: 50,
+      dmHistoryLimit: 30,
+      dms: {
+        "user-42": { historyLimit: 100 },
+      },
+    },
+  },
+}
+```
+
+---
+
 ## Account Management
 
 ### `name`
@@ -816,32 +860,35 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 
 ## Settings Quick Reference
 
-| Setting                  | Type                      | Default       | Scope            | Description                                                |
-| ------------------------ | ------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
-| `baseUrl`                | `string`                  | —             | channel, account | Chatwoot instance URL                                      |
-| `apiKey`                 | `string`                  | —             | channel, account | Agent Bot API access token                                 |
-| `accountId`              | `string`                  | —             | channel, account | Chatwoot account ID                                        |
-| `webhookSecret`          | `string`                  | —             | channel, account | Webhook signature verification secret                      |
-| `dmPolicy`               | `string` enum             | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
-| `allowFrom`              | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
-| `defaultTo`              | `string`                  | —             | channel, account | Default CLI delivery target                                |
-| `selfChatMode`           | `boolean`                 | —             | channel, account | Treat own messages as user messages                        |
-| `groupPolicy`            | `string` enum             | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
-| `groupAllowFrom`         | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs in group contexts                       |
-| `groups`                 | `Record<string, Group>`   | —             | channel, account | Per-group config (mention, tools)                          |
-| `contextVisibility`      | `string` enum             | —             | channel, account | Supplemental context visibility policy                     |
-| `blockStreaming`         | `boolean`                 | —             | channel, account | Disable streaming, send full responses                     |
-| `blockStreamingCoalesce` | `object`                  | —             | channel, account | Merge streamed block replies before sending                |
-| `textChunkLimit`         | `number`                  | —             | channel, account | Max characters per outbound text chunk                     |
-| `chunkMode`              | `string` enum             | —             | channel, account | Chunking mode (`length`/`newline`)                         |
-| `debounceMs`             | `number`                  | `0`           | channel, account | Debounce window (ms) for batching inbound messages         |
-| `sendReadReceipts`       | `boolean`                 | —             | channel, account | Send read receipts for incoming messages                   |
-| `messagePrefix`          | `string`                  | —             | channel, account | Inbound message prefix override                            |
-| `responsePrefix`         | `string`                  | —             | channel, account | Outbound response prefix override                          |
-| `reactionLevel`          | `string` enum             | —             | channel, account | Reaction verbosity (`off`/`ack`/`minimal`/`extensive`)     |
-| `ackReaction`            | `object`                  | see below     | channel, account | Acknowledgment reaction config                             |
-| `mediaMaxMb`             | `number`                  | `50`          | channel, account | Max media file size in MB                                  |
-| `name`                   | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
-| `enabled`                | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
-| `accounts`               | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
-| `defaultAccount`         | `string`                  | —             | channel only     | Default account ID for multi-account                       |
+| Setting                  | Type                       | Default       | Scope            | Description                                                |
+| ------------------------ | -------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
+| `baseUrl`                | `string`                   | —             | channel, account | Chatwoot instance URL                                      |
+| `apiKey`                 | `string`                   | —             | channel, account | Agent Bot API access token                                 |
+| `accountId`              | `string`                   | —             | channel, account | Chatwoot account ID                                        |
+| `webhookSecret`          | `string`                   | —             | channel, account | Webhook signature verification secret                      |
+| `dmPolicy`               | `string` enum              | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
+| `allowFrom`              | `(string \| number)[]`     | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
+| `defaultTo`              | `string`                   | —             | channel, account | Default CLI delivery target                                |
+| `selfChatMode`           | `boolean`                  | —             | channel, account | Treat own messages as user messages                        |
+| `groupPolicy`            | `string` enum              | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
+| `groupAllowFrom`         | `(string \| number)[]`     | —             | channel, account | Allowed sender IDs in group contexts                       |
+| `groups`                 | `Record<string, Group>`    | —             | channel, account | Per-group config (mention, tools)                          |
+| `contextVisibility`      | `string` enum              | —             | channel, account | Supplemental context visibility policy                     |
+| `blockStreaming`         | `boolean`                  | —             | channel, account | Disable streaming, send full responses                     |
+| `blockStreamingCoalesce` | `object`                   | —             | channel, account | Merge streamed block replies before sending                |
+| `textChunkLimit`         | `number`                   | —             | channel, account | Max characters per outbound text chunk                     |
+| `chunkMode`              | `string` enum              | —             | channel, account | Chunking mode (`length`/`newline`)                         |
+| `debounceMs`             | `number`                   | `0`           | channel, account | Debounce window (ms) for batching inbound messages         |
+| `sendReadReceipts`       | `boolean`                  | —             | channel, account | Send read receipts for incoming messages                   |
+| `messagePrefix`          | `string`                   | —             | channel, account | Inbound message prefix override                            |
+| `responsePrefix`         | `string`                   | —             | channel, account | Outbound response prefix override                          |
+| `reactionLevel`          | `string` enum              | —             | channel, account | Reaction verbosity (`off`/`ack`/`minimal`/`extensive`)     |
+| `ackReaction`            | `object`                   | see below     | channel, account | Acknowledgment reaction config                             |
+| `mediaMaxMb`             | `number`                   | `50`          | channel, account | Max media file size in MB                                  |
+| `historyLimit`           | `number`                   | —             | channel, account | Max group messages buffered for context                    |
+| `dmHistoryLimit`         | `number`                   | —             | channel, account | Max DM turns for history context                           |
+| `dms`                    | `Record<string, DmConfig>` | —             | channel, account | Per-DM config overrides                                    |
+| `name`                   | `string`                   | —             | channel, account | Display name for CLI/UI                                    |
+| `enabled`                | `boolean`                  | `true`        | channel, account | Enable/disable this account                                |
+| `accounts`               | `Record<string, Account>`  | —             | channel only     | Per-account configurations                                 |
+| `defaultAccount`         | `string`                   | —             | channel only     | Default account ID for multi-account                       |
