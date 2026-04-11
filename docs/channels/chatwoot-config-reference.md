@@ -11,8 +11,13 @@ All settings live under the `channels.chatwoot` key in `openclaw.json` (JSON5 fo
 - [Connection Settings](#connection-settings)
 - [Access Control](#access-control)
 - [Delivery](#delivery)
+- [Reactions](#reactions)
+- [Media](#media)
+- [Session and History](#session-and-history)
 - [Account Management](#account-management)
 - [Multi-Account](#multi-account)
+- [Actions and Tools](#actions-and-tools)
+- [Advanced / Operational](#advanced--operational)
 - [Environment Variables](#environment-variables)
 - [Validation Rules](#validation-rules)
 - [Full Configuration Examples](#full-configuration-examples)
@@ -465,6 +470,102 @@ Account ID to use as the default when multiple accounts are configured.
 
 ---
 
+## Actions and Tools
+
+These settings control what the agent is allowed to do in conversations. They are root-level only (not per-account).
+
+### `actions`
+
+Per-action gating for agent tools.
+
+- **Type:** `object`
+- **Scope:** root only
+
+| Sub-field     | Type      | Description                         |
+| ------------- | --------- | ----------------------------------- |
+| `reactions`   | `boolean` | Allow agent to send emoji reactions |
+| `sendMessage` | `boolean` | Allow agent to send messages        |
+| `polls`       | `boolean` | Allow agent to create polls         |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      actions: {
+        reactions: true,
+        sendMessage: true,
+        polls: false,
+      },
+    },
+  },
+}
+```
+
+### `configWrites`
+
+Allow the agent to modify configuration from within a chat conversation.
+
+- **Type:** `boolean`
+- **Default:** not set
+- **Scope:** root only
+
+---
+
+## Advanced / Operational
+
+### `capabilities`
+
+Provider capability tags for this channel. Used to signal what the channel supports to the model provider.
+
+- **Type:** `string[]`
+- **Default:** not set
+
+### `markdown`
+
+Markdown formatting overrides for this channel.
+
+- **Type:** `object`
+
+| Sub-field | Type     | Description                                           |
+| --------- | -------- | ----------------------------------------------------- |
+| `tables`  | `string` | Table rendering mode (`off`/`bullets`/`code`/`block`) |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      markdown: {
+        tables: "bullets",
+      },
+    },
+  },
+}
+```
+
+### `heartbeat`
+
+Heartbeat visibility settings. Controls whether heartbeat status information is shown.
+
+- **Type:** `object`
+
+| Sub-field      | Type      | Description                            |
+| -------------- | --------- | -------------------------------------- |
+| `showOk`       | `boolean` | Show "OK" heartbeat status             |
+| `showAlerts`   | `boolean` | Show heartbeat alert messages          |
+| `useIndicator` | `boolean` | Use an indicator for heartbeat display |
+
+### `healthMonitor`
+
+Channel health monitor configuration.
+
+- **Type:** `object`
+
+| Sub-field | Type      | Description               |
+| --------- | --------- | ------------------------- |
+| `enabled` | `boolean` | Enable the health monitor |
+
+---
+
 ## Environment Variables
 
 Connection settings can also be configured via environment variables. These are useful for Docker deployments or CI environments where you do not want secrets in config files.
@@ -892,3 +993,9 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 | `enabled`                | `boolean`                  | `true`        | channel, account | Enable/disable this account                                |
 | `accounts`               | `Record<string, Account>`  | —             | channel only     | Per-account configurations                                 |
 | `defaultAccount`         | `string`                   | —             | channel only     | Default account ID for multi-account                       |
+| `actions`                | `object`                   | —             | channel only     | Action gating (reactions, sendMessage, polls)              |
+| `configWrites`           | `boolean`                  | —             | channel only     | Allow config writes from chat                              |
+| `capabilities`           | `string[]`                 | —             | channel, account | Provider capability tags                                   |
+| `markdown`               | `object`                   | —             | channel, account | Markdown formatting overrides                              |
+| `heartbeat`              | `object`                   | —             | channel, account | Heartbeat visibility settings                              |
+| `healthMonitor`          | `object`                   | —             | channel, account | Channel health monitor config                              |
