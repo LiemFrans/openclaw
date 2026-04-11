@@ -214,6 +214,87 @@ This is useful when you want cleaner message delivery in Chatwoot — a single c
 }
 ```
 
+### `blockStreamingCoalesce`
+
+Merge streamed block replies before sending. When block streaming is active, this controls how streamed fragments are coalesced into chunks.
+
+- **Type:** `object`
+- **Default:** not set
+
+| Sub-field  | Type     | Description                                         |
+| ---------- | -------- | --------------------------------------------------- |
+| `minChars` | `number` | Minimum characters before sending a coalesced chunk |
+| `maxChars` | `number` | Maximum characters per coalesced chunk              |
+| `idleMs`   | `number` | Idle time (ms) before flushing a partial chunk      |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      blockStreamingCoalesce: {
+        minChars: 100,
+        maxChars: 2000,
+        idleMs: 500,
+      },
+    },
+  },
+}
+```
+
+### `textChunkLimit`
+
+Maximum characters per outbound text chunk. Messages longer than this are split into multiple chunks.
+
+- **Type:** `number` (positive integer)
+- **Default:** not set (platform default, typically 4000)
+
+### `chunkMode`
+
+Controls how long messages are split into chunks.
+
+| Value       | Description                        |
+| ----------- | ---------------------------------- |
+| `"length"`  | Split by character count (default) |
+| `"newline"` | Split on newline boundaries        |
+
+- **Type:** `string` enum
+
+### `debounceMs`
+
+Debounce window in milliseconds for batching rapid consecutive inbound messages from the same sender. When a message arrives, OpenClaw waits this long for additional messages before processing.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** `0` (no debounce)
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      debounceMs: 1500,
+    },
+  },
+}
+```
+
+### `sendReadReceipts`
+
+Send read receipts for incoming messages.
+
+- **Type:** `boolean`
+- **Default:** not set
+
+### `messagePrefix`
+
+Override the prefix prepended to inbound messages before they are sent to the model.
+
+- **Type:** `string`
+
+### `responsePrefix`
+
+Override the prefix prepended to outbound responses.
+
+- **Type:** `string`
+
 ---
 
 ## Account Management
@@ -668,22 +749,29 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 
 ## Settings Quick Reference
 
-| Setting             | Type                      | Default       | Scope            | Description                                                |
-| ------------------- | ------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
-| `baseUrl`           | `string`                  | —             | channel, account | Chatwoot instance URL                                      |
-| `apiKey`            | `string`                  | —             | channel, account | Agent Bot API access token                                 |
-| `accountId`         | `string`                  | —             | channel, account | Chatwoot account ID                                        |
-| `webhookSecret`     | `string`                  | —             | channel, account | Webhook signature verification secret                      |
-| `dmPolicy`          | `string` enum             | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
-| `allowFrom`         | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
-| `defaultTo`         | `string`                  | —             | channel, account | Default CLI delivery target                                |
-| `selfChatMode`      | `boolean`                 | —             | channel, account | Treat own messages as user messages                        |
-| `groupPolicy`       | `string` enum             | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
-| `groupAllowFrom`    | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs in group contexts                       |
-| `groups`            | `Record<string, Group>`   | —             | channel, account | Per-group config (mention, tools)                          |
-| `contextVisibility` | `string` enum             | —             | channel, account | Supplemental context visibility policy                     |
-| `blockStreaming`    | `boolean`                 | —             | channel, account | Disable streaming, send full responses                     |
-| `name`              | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
-| `enabled`           | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
-| `accounts`          | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
-| `defaultAccount`    | `string`                  | —             | channel only     | Default account ID for multi-account                       |
+| Setting                  | Type                      | Default       | Scope            | Description                                                |
+| ------------------------ | ------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
+| `baseUrl`                | `string`                  | —             | channel, account | Chatwoot instance URL                                      |
+| `apiKey`                 | `string`                  | —             | channel, account | Agent Bot API access token                                 |
+| `accountId`              | `string`                  | —             | channel, account | Chatwoot account ID                                        |
+| `webhookSecret`          | `string`                  | —             | channel, account | Webhook signature verification secret                      |
+| `dmPolicy`               | `string` enum             | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
+| `allowFrom`              | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
+| `defaultTo`              | `string`                  | —             | channel, account | Default CLI delivery target                                |
+| `selfChatMode`           | `boolean`                 | —             | channel, account | Treat own messages as user messages                        |
+| `groupPolicy`            | `string` enum             | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
+| `groupAllowFrom`         | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs in group contexts                       |
+| `groups`                 | `Record<string, Group>`   | —             | channel, account | Per-group config (mention, tools)                          |
+| `contextVisibility`      | `string` enum             | —             | channel, account | Supplemental context visibility policy                     |
+| `blockStreaming`         | `boolean`                 | —             | channel, account | Disable streaming, send full responses                     |
+| `blockStreamingCoalesce` | `object`                  | —             | channel, account | Merge streamed block replies before sending                |
+| `textChunkLimit`         | `number`                  | —             | channel, account | Max characters per outbound text chunk                     |
+| `chunkMode`              | `string` enum             | —             | channel, account | Chunking mode (`length`/`newline`)                         |
+| `debounceMs`             | `number`                  | `0`           | channel, account | Debounce window (ms) for batching inbound messages         |
+| `sendReadReceipts`       | `boolean`                 | —             | channel, account | Send read receipts for incoming messages                   |
+| `messagePrefix`          | `string`                  | —             | channel, account | Inbound message prefix override                            |
+| `responsePrefix`         | `string`                  | —             | channel, account | Outbound response prefix override                          |
+| `name`                   | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
+| `enabled`                | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
+| `accounts`               | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
+| `defaultAccount`         | `string`                  | —             | channel only     | Default account ID for multi-account                       |
