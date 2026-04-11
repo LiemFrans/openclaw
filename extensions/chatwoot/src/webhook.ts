@@ -12,7 +12,12 @@ import {
 import { resolveChatwootAccount } from "./accounts.js";
 import { ChatwootClient } from "./client.js";
 import type { PluginRuntime } from "./runtime-api.js";
-import type { ChatwootMessageWebhookPayload, ChatwootSender, CoreConfig } from "./types.js";
+import type {
+  ChatwootGroupConfig,
+  ChatwootMessageWebhookPayload,
+  ChatwootSender,
+  CoreConfig,
+} from "./types.js";
 
 const WEBHOOK_MAX_BODY_BYTES = 512 * 1024;
 const WEBHOOK_BODY_TIMEOUT_MS = 5_000;
@@ -185,6 +190,59 @@ export function isChatwootGroupAllowed(params: {
   }
   const candidates = resolveChatwootGroupCandidates(params.sender);
   return candidates.some((candidate) => groupAllowFrom.includes(candidate));
+}
+
+/**
+ * Resolve per-group config from the `groups` map by matching group candidate IDs.
+ * First exact match wins; falls back to wildcard `"*"` entry.
+ */
+export function resolveChatwootGroupConfig(params: {
+  groups?: Record<string, ChatwootGroupConfig>;
+  sender?: ChatwootSender;
+}): { groupConfig?: ChatwootGroupConfig; wildcardConfig?: ChatwootGroupConfig } {
+  const { groups } = params;
+  if (!groups) {
+    return {};
+  }
+  const wildcardConfig = groups["*"];
+  const candidates = resolveChatwootGroupCandidates(params.sender);
+  for (const candidate of candidates) {
+    const match = groups[candidate];
+    if (match) {
+      return { groupConfig: match, wildcardConfig };
+    }
+  }
+  return { wildcardConfig };
+}
+
+/**
+ * Resolve whether requireMention is active for a Chatwoot group.
+ * Per-group config takes priority over wildcard; default is false (no mention required).
+ */
+export function resolveChatwootRequireMention(params: {
+  groupConfig?: ChatwootGroupConfig;
+  wildcardConfig?: ChatwootGroupConfig;
+}): boolean {
+  if (params.groupConfig?.requireMention !== undefined) {
+    return params.groupConfig.requireMention;
+  }
+  if (params.wildcardConfig?.requireMention !== undefined) {
+    return params.wildcardConfig.requireMention;
+  }
+  return false;
+}
+
+/**
+ * Check whether the bot name or @mention appears in the message content.
+ * Matches case-insensitive: "@openclaw", "openclaw", or "OpenClaw" anywhere in text.
+ */
+export function isBotMentioned(content: string | undefined, botName: string): boolean {
+  if (!content || !botName) {
+    return false;
+  }
+  const escaped = botName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?:@)?${escaped}\\b`, "i");
+  return pattern.test(content);
 }
 
 function normalizeChatwootNumericId(value: unknown): number | undefined {
@@ -513,6 +571,26 @@ export async function handleChatwootWebhook(
       if (!allowed) {
         deps.log?.(`chatwoot: drop sender=${senderId} (dmPolicy=${dmPolicy}, not in allowFrom)`);
         respondJson(res, 200, { status: "ignored", reason: `dmPolicy=${dmPolicy} (not allowed)` });
+        return true;
+      }
+    }
+  }
+
+  // Enforce per-group requireMention gate.
+  if (isGroup && account.config.groups) {
+    const { groupConfig, wildcardConfig } = resolveChatwootGroupConfig({
+      groups: account.config.groups,
+      sender: payload.sender,
+    });
+    const requireMention = resolveChatwootRequireMention({ groupConfig, wildcardConfig });
+    if (requireMention) {
+      const botName = "openclaw";
+      const mentioned = isBotMentioned(content, botName);
+      if (!mentioned) {
+        deps.log?.(
+          `chatwoot: drop group conversation=${conversationId} (requireMention, not mentioned)`,
+        );
+        respondJson(res, 200, { status: "ignored", reason: "requireMention (not mentioned)" });
         return true;
       }
     }
