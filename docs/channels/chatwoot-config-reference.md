@@ -343,6 +343,27 @@ Configuration for the acknowledgment reaction sent when the bot starts processin
 
 ---
 
+## Media
+
+### `mediaMaxMb`
+
+Maximum media file size in megabytes. Files exceeding this limit are rejected.
+
+- **Type:** `number` (positive)
+- **Default:** `50`
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      mediaMaxMb: 25,
+    },
+  },
+}
+```
+
+---
+
 ## Account Management
 
 ### `name`
@@ -819,6 +840,7 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 | `responsePrefix`         | `string`                  | —             | channel, account | Outbound response prefix override                          |
 | `reactionLevel`          | `string` enum             | —             | channel, account | Reaction verbosity (`off`/`ack`/`minimal`/`extensive`)     |
 | `ackReaction`            | `object`                  | see below     | channel, account | Acknowledgment reaction config                             |
+| `mediaMaxMb`             | `number`                  | `50`          | channel, account | Max media file size in MB                                  |
 | `name`                   | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
 | `enabled`                | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
 | `accounts`               | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
