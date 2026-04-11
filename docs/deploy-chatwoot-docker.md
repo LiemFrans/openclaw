@@ -42,6 +42,16 @@ DOCKER_BUILDKIT=1 docker build \
 
 > **Note:** This builds Node 24 bookworm with the Chatwoot plugin's runtime dependencies installed. Build takes 5-10 minutes depending on your machine.
 
+> **IPv6 build error workaround:** If the build fails with a network error like `failed to do request ... connect: network is unreachable` (common on hosts without IPv6), strip the first line of the Dockerfile before building:
+>
+> ```bash
+> sed '1d' Dockerfile > /tmp/Dockerfile.nosyntax
+> DOCKER_BUILDKIT=1 docker build \
+>   --build-arg OPENCLAW_EXTENSIONS="chatwoot" \
+>   -t openclaw:chatwoot-latest \
+>   -f /tmp/Dockerfile.nosyntax .
+> ```
+
 ### 1.3 Save the image as a tarball
 
 ```bash
@@ -588,6 +598,101 @@ You should see inbound webhook processing and reply dispatch.
 
 ---
 
+## Phase 6: Session Naming and Verification
+
+The Chatwoot plugin creates descriptive session names using WhatsApp metadata from WAHA (WhatsApp HTTP API). This makes it easy to identify conversations in the Control UI and TUI.
+
+### 6.1 Session name formats
+
+Session names vary by conversation type:
+
+| Type               | Format                                           | Example                                                               |
+| ------------------ | ------------------------------------------------ | --------------------------------------------------------------------- |
+| DM                 | `chatwoot:whatsapp-{lid}-{jid}-{contact name}`   | `chatwoot:whatsapp-4372444528669@lid-6285959823371@c.us-Parkee Frans` |
+| Group              | `chatwoot:whatsapp-{group chat id}-{group name}` | `chatwoot:whatsapp-120363407872602773@g.us-Group Test AI (Group)`     |
+| Fallback (no WAHA) | `chatwoot:{inboxId}:{conversationId}`            | `chatwoot:9:1702`                                                     |
+
+The plugin detects DM vs group automatically:
+
+- **Group**: sender has `identifier` ending in `@g.us` or `custom_attributes.waha_whatsapp_chat_id` ending in `@g.us`
+- **DM**: sender has `waha_whatsapp_lid` or `waha_whatsapp_jid` in `custom_attributes`
+- **Fallback**: when no WAHA attributes are present (non-WhatsApp inboxes)
+
+### 6.2 Verify session names via gateway logs
+
+After deploying, send a WhatsApp message to the bot and check the logs:
+
+```bash
+sudo docker compose logs -f --tail 50 | grep chatwoot
+```
+
+You should see log lines like:
+
+```
+[gateway] chatwoot: conversation=1702 sender=1658 peer=chatwoot:whatsapp-4372444528669@lid-6285959823371@c.us-Parkee Frans
+```
+
+For group messages:
+
+```
+[gateway] chatwoot: conversation=1703 sender=1678 peer=chatwoot:whatsapp-120363407872602773@g.us-Group Test AI (Group)
+```
+
+If `peer=` still shows the old format (`chatwoot:9:1702`), the updated image has not been deployed yet.
+
+### 6.3 Verify session names in the Control UI
+
+Open the Control UI at `https://oc.antive.id`. The session dropdown should show the descriptive name:
+
+- `chatwoot:whatsapp-120363407872602773@g.us-Group Test AI (Group)` (group)
+- `chatwoot:whatsapp-4372444528669@lid-6285959823371@c.us-Parkee Frans` (DM)
+
+### 6.4 Verify session names in the TUI
+
+From inside the Docker container:
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  openclaw tui --session "agent:main:chatwoot:group:chatwoot:whatsapp-120363407872602773@g.us-group test ai (group)"
+```
+
+The TUI header will show the full session name.
+
+### 6.5 Reset old sessions
+
+Sessions created before the descriptive naming update retain their old labels. To see the new format, reset old sessions and send a new message:
+
+**Via Control UI:**
+
+1. Go to **Sessions** in the sidebar
+2. Find the old session (e.g. `chatwoot:g-9-1678`)
+3. Click **Reset** to delete it
+4. Send a new message from WhatsApp -- a new session with the descriptive name will be created
+
+**Via CLI inside the container:**
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  openclaw sessions list
+
+# Reset a specific session
+sudo docker compose exec openclaw-gateway \
+  openclaw sessions reset --session "agent:main:chatwoot:group:chatwoot:9:1678"
+```
+
+### 6.6 Verify session files on disk
+
+Session data is stored inside the container at `~/.openclaw/agents/*/sessions/`:
+
+```bash
+sudo docker compose exec openclaw-gateway \
+  ls ~/.openclaw/agents/main/sessions/
+```
+
+The `sessions.json` file inside that directory contains session metadata including labels and origin information.
+
+---
+
 ## Updating
 
 When you rebuild with new changes:
@@ -715,6 +820,24 @@ HMAC signature verification failed. Verify `webhookSecret` matches Chatwoot, or 
 
 OpenClaw uses 18789 by default. Change `OPENCLAW_GATEWAY_PORT` in `.env` if needed.
 
+### Session names still show old format
+
+**Control UI shows `chatwoot:g-9-1678` instead of descriptive name:**
+
+Sessions created before the descriptive naming update retain their old labels. Reset the old session and send a new message (see Phase 6.5).
+
+**Log shows `peer=chatwoot:9:1702` instead of descriptive name:**
+
+The deployed image does not include the descriptive naming changes. Rebuild and redeploy (see Updating section).
+
+**Fallback format `chatwoot:{inboxId}:{conversationId}` in logs:**
+
+The sender's Chatwoot contact does not have WAHA WhatsApp custom attributes. This happens when:
+
+- The inbox is not connected via WAHA (e.g. email, web widget)
+- The WAHA instance has not synced contact attributes to Chatwoot
+- The contact was created manually without WhatsApp metadata
+
 ### Useful commands
 
 ```bash
@@ -736,4 +859,16 @@ sudo docker compose down && sudo docker compose up -d
 
 # View live logs
 sudo docker compose logs -f --tail 50
+
+# Filter Chatwoot-specific logs
+sudo docker compose logs -f --tail 100 | grep chatwoot
+
+# List active sessions
+sudo docker compose exec openclaw-gateway openclaw sessions list
+
+# Reset a specific session
+sudo docker compose exec openclaw-gateway openclaw sessions reset --session "SESSION_KEY"
+
+# Open TUI inside container
+sudo docker compose exec -it openclaw-gateway openclaw tui
 ```
