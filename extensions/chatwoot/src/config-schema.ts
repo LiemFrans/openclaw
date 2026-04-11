@@ -11,6 +11,15 @@ import { z } from "openclaw/plugin-sdk/zod";
 
 const ToolPolicyBySenderSchema = z.record(z.string(), ToolPolicySchema).optional();
 
+const ChatwootAckReactionSchema = z
+  .object({
+    emoji: z.string().optional(),
+    direct: z.boolean().optional().default(true),
+    group: z.enum(["always", "mentions", "never"]).optional().default("mentions"),
+  })
+  .strict()
+  .optional();
+
 const ChatwootGroupEntrySchema = z
   .object({
     requireMention: z.boolean().optional(),
@@ -41,6 +50,8 @@ export const ChatwootAccountSchemaBase = z
     sendReadReceipts: z.boolean().optional(),
     messagePrefix: z.string().optional(),
     responsePrefix: z.string().optional(),
+    reactionLevel: z.enum(["off", "ack", "minimal", "extensive"]).optional(),
+    ackReaction: ChatwootAckReactionSchema,
     selfChatMode: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     groupAllowFrom: AllowFromListSchema,
