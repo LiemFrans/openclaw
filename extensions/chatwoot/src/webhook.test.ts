@@ -3,8 +3,12 @@ import { describe, it, expect, beforeAll } from "vitest";
 import {
   buildChatwootSessionPeerId,
   buildDescriptiveChatwootPeerId,
+  isChatwootGroupAllowed,
+  isChatwootSenderAllowed,
   isIncomingMessageType,
   resolveChatwootConversationId,
+  resolveChatwootGroupCandidates,
+  resolveChatwootSenderCandidates,
   verifyChatwootWebhookSignature,
 } from "./webhook.js";
 
@@ -606,5 +610,365 @@ describe("ChatwootConfigSchema – actions and advanced", () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("resolveChatwootSenderCandidates", () => {
+  it("returns empty array for undefined sender", () => {
+    expect(resolveChatwootSenderCandidates(undefined)).toEqual([]);
+  });
+
+  it("returns numeric contact ID", () => {
+    const candidates = resolveChatwootSenderCandidates({ id: 1679 });
+    expect(candidates).toContain("1679");
+  });
+
+  it("extracts phone number from WAHA JID", () => {
+    const candidates = resolveChatwootSenderCandidates({
+      id: 1679,
+      custom_attributes: {
+        waha_whatsapp_jid: "6285156249703@c.us",
+      },
+    });
+    expect(candidates).toContain("6285156249703");
+    expect(candidates).toContain("6285156249703@c.us");
+  });
+
+  it("extracts phone number from identifier with lid prefix", () => {
+    const candidates = resolveChatwootSenderCandidates({
+      id: 1658,
+      identifier: "lid-6285959823371@c.us",
+      custom_attributes: {
+        waha_whatsapp_jid: "6285959823371@c.us",
+        waha_whatsapp_lid: "4372444528669@lid",
+      },
+    });
+    expect(candidates).toContain("6285959823371");
+    expect(candidates).toContain("6285959823371@c.us");
+    expect(candidates).toContain("lid-6285959823371@c.us");
+    expect(candidates).toContain("1658");
+  });
+
+  it("extracts phone from phone_number field", () => {
+    const candidates = resolveChatwootSenderCandidates({
+      id: 1658,
+      phone_number: "+6285959823371",
+    });
+    expect(candidates).toContain("6285959823371");
+  });
+
+  it("does not duplicate phone number from JID and phone_number", () => {
+    const candidates = resolveChatwootSenderCandidates({
+      id: 1658,
+      phone_number: "+6285959823371",
+      custom_attributes: {
+        waha_whatsapp_jid: "6285959823371@c.us",
+      },
+    });
+    const phoneOccurrences = candidates.filter((c) => c === "6285959823371");
+    expect(phoneOccurrences.length).toBe(1);
+  });
+
+  it("matches real WAHA webhook payload (identifier null)", () => {
+    // Real Chatwoot+WAHA payload: identifier is null, phone comes from JID and phone_number
+    const candidates = resolveChatwootSenderCandidates({
+      id: 1679,
+      name: "Frans",
+      phone_number: "+6285156249703",
+      identifier: undefined, // null in real Chatwoot payload
+      custom_attributes: {
+        waha_whatsapp_jid: "6285156249703@c.us",
+        waha_whatsapp_lid: "132980810997935@lid",
+        waha_whatsapp_chat_id: "132980810997935@lid",
+      },
+    });
+    expect(candidates).toContain("1679");
+    expect(candidates).toContain("6285156249703");
+    expect(candidates).toContain("6285156249703@c.us");
+    // identifier is null so no identifier candidates
+    expect(candidates).not.toContain("undefined");
+    expect(candidates.every(Boolean)).toBe(true);
+  });
+});
+
+describe("isChatwootSenderAllowed", () => {
+  // Real WAHA+Chatwoot payload: identifier is null, phone from JID + phone_number
+  const allowedSender = {
+    id: 1658,
+    name: "Parkee Frans",
+    phone_number: "+6285959823371",
+    identifier: undefined as string | undefined, // null in real Chatwoot payload
+    custom_attributes: {
+      waha_whatsapp_jid: "6285959823371@c.us",
+      waha_whatsapp_lid: "4372444528669@lid",
+      waha_whatsapp_chat_id: "4372444528669@lid",
+    },
+  };
+
+  const blockedSender = {
+    id: 1679,
+    name: "Frans",
+    phone_number: "+6285156249703",
+    identifier: undefined as string | undefined,
+    custom_attributes: {
+      waha_whatsapp_jid: "6285156249703@c.us",
+      waha_whatsapp_lid: "132980810997935@lid",
+      waha_whatsapp_chat_id: "132980810997935@lid",
+    },
+  };
+
+  it("allows all senders when dmPolicy is open", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "open",
+        allowFrom: [],
+        sender: blockedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks all senders when dmPolicy is disabled", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "disabled",
+        allowFrom: ["6285959823371"],
+        sender: allowedSender,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows sender when phone number matches allowFrom", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["6285959823371"],
+        sender: allowedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks sender when phone number is not in allowFrom", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["6285959823371"],
+        sender: blockedSender,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows sender when Chatwoot contact ID matches allowFrom", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["1658"],
+        sender: allowedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows sender when full JID matches allowFrom", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["6285959823371@c.us"],
+        sender: allowedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows all senders when allowFrom contains wildcard", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["*"],
+        sender: blockedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks all senders when allowlist is empty", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: [],
+        sender: allowedSender,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows when any candidate matches any allowFrom entry", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "allowlist",
+        allowFrom: ["6285959823371", "6285156249703"],
+        sender: blockedSender,
+      }),
+    ).toBe(true);
+  });
+
+  it("pairing policy blocks with empty allowFrom", () => {
+    expect(
+      isChatwootSenderAllowed({
+        dmPolicy: "pairing",
+        allowFrom: [],
+        sender: allowedSender,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveChatwootGroupCandidates", () => {
+  it("returns empty for undefined sender", () => {
+    expect(resolveChatwootGroupCandidates(undefined)).toEqual([]);
+  });
+
+  it("returns contact ID for group sender", () => {
+    const candidates = resolveChatwootGroupCandidates({
+      id: 1666,
+      name: "PARKEE Agent General & Production (Group)",
+      identifier: "6281380888035-1572323526@g.us",
+      custom_attributes: {
+        waha_whatsapp_chat_id: "6281380888035-1572323526@g.us",
+      },
+    });
+    // identifier and chat_id are the same, so deduped
+    expect(candidates).toEqual(["1666", "6281380888035-1572323526@g.us"]);
+  });
+
+  it("includes both identifier and chat_id when different", () => {
+    const candidates = resolveChatwootGroupCandidates({
+      id: 1670,
+      name: "Test Group",
+      identifier: "old-group-id@g.us",
+      custom_attributes: {
+        waha_whatsapp_chat_id: "120363364780250652@g.us",
+      },
+    });
+    expect(candidates).toEqual(["1670", "old-group-id@g.us", "120363364780250652@g.us"]);
+  });
+
+  it("handles group with only chat_id (no identifier)", () => {
+    const candidates = resolveChatwootGroupCandidates({
+      id: 1670,
+      name: "Parkee Agent Development (Group)",
+      custom_attributes: {
+        waha_whatsapp_chat_id: "120363364780250652@g.us",
+      },
+    });
+    expect(candidates).toEqual(["1670", "120363364780250652@g.us"]);
+  });
+
+  it("matches real WAHA group payload", () => {
+    // From real Chatwoot log: conversation=1710 sender=1670 type=group
+    const candidates = resolveChatwootGroupCandidates({
+      id: 1670,
+      name: "BARBAR (Group)",
+      identifier: undefined,
+      custom_attributes: {
+        waha_whatsapp_chat_id: "6285732931330-1606750208@g.us",
+      },
+    });
+    expect(candidates).toEqual(["1670", "6285732931330-1606750208@g.us"]);
+  });
+});
+
+describe("isChatwootGroupAllowed", () => {
+  const allowedGroup = {
+    id: 1666,
+    name: "PARKEE Agent General (Group)",
+    identifier: "6281380888035-1572323526@g.us",
+    custom_attributes: {
+      waha_whatsapp_chat_id: "6281380888035-1572323526@g.us",
+    },
+  };
+
+  const blockedGroup = {
+    id: 1670,
+    name: "BARBAR (Group)",
+    identifier: undefined as string | undefined,
+    custom_attributes: {
+      waha_whatsapp_chat_id: "6285732931330-1606750208@g.us",
+    },
+  };
+
+  it("allows all groups when groupPolicy is open", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "open",
+        groupAllowFrom: [],
+        sender: blockedGroup,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks all groups when groupPolicy is disabled", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "disabled",
+        groupAllowFrom: ["6281380888035-1572323526@g.us"],
+        sender: allowedGroup,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows group when chat_id matches groupAllowFrom", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["6281380888035-1572323526@g.us"],
+        sender: allowedGroup,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks group when chat_id is not in groupAllowFrom", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["6281380888035-1572323526@g.us"],
+        sender: blockedGroup,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows group when Chatwoot contact ID matches", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["1666"],
+        sender: allowedGroup,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows all groups when groupAllowFrom contains wildcard", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["*"],
+        sender: blockedGroup,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks all groups when groupAllowFrom is empty", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: [],
+        sender: allowedGroup,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows when any candidate matches any groupAllowFrom entry", () => {
+    expect(
+      isChatwootGroupAllowed({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["6281380888035-1572323526@g.us", "6285732931330-1606750208@g.us"],
+        sender: blockedGroup,
+      }),
+    ).toBe(true);
   });
 });

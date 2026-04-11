@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { safeEqualSecret } from "openclaw/plugin-sdk/browser-security-runtime";
+import { normalizeAllowFromList } from "openclaw/plugin-sdk/channel-policy";
 import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
 import { deliverFormattedTextWithAttachments } from "openclaw/plugin-sdk/reply-payload";
 import {
@@ -28,6 +29,162 @@ export function isIncomingMessageType(messageType: unknown): boolean {
     return false;
   }
   return messageType.trim().toLowerCase() === MESSAGE_TYPE_INCOMING_LABEL;
+}
+
+/**
+ * Extract phone number digits from a WhatsApp JID like "6285156249703@c.us".
+ * Returns the leading digits before "@" or undefined if not a phone-style JID.
+ */
+function extractPhoneFromJid(jid: string | undefined): string | undefined {
+  if (!jid) {
+    return undefined;
+  }
+  const match = /^(\d+)@/.exec(jid);
+  return match?.[1];
+}
+
+/**
+ * Build a set of matchable sender IDs from a Chatwoot sender payload.
+ * Users can put any of these values in `allowFrom`:
+ * - Chatwoot numeric contact ID (e.g. "1679")
+ * - Phone number from WAHA JID (e.g. "6285156249703")
+ * - Full JID (e.g. "6285156249703@c.us")
+ * - Sender identifier (e.g. "lid-6285156249703@c.us")
+ * - Sender phone_number field
+ */
+export function resolveChatwootSenderCandidates(sender?: ChatwootSender): string[] {
+  const candidates: string[] = [];
+  if (!sender) {
+    return candidates;
+  }
+  // Chatwoot numeric contact ID
+  const id = String(sender.id ?? "");
+  if (id && id !== "unknown") {
+    candidates.push(id);
+  }
+  // Phone number from WAHA WhatsApp JID (most common user expectation)
+  const jid =
+    typeof sender.custom_attributes?.waha_whatsapp_jid === "string"
+      ? sender.custom_attributes.waha_whatsapp_jid
+      : undefined;
+  const phoneFromJid = extractPhoneFromJid(jid);
+  if (phoneFromJid) {
+    candidates.push(phoneFromJid);
+  }
+  // Full JID if present
+  if (jid) {
+    candidates.push(jid);
+  }
+  // Sender identifier (may include lid prefix)
+  if (sender.identifier) {
+    candidates.push(sender.identifier);
+    // Also extract phone digits from identifier like "lid-6285156249703@c.us"
+    const identifierPhone = extractPhoneFromJid(sender.identifier.replace(/^lid-/, ""));
+    if (identifierPhone && identifierPhone !== phoneFromJid) {
+      candidates.push(identifierPhone);
+    }
+  }
+  // Sender phone_number field (if Chatwoot has it)
+  if (sender.phone_number) {
+    const cleaned = sender.phone_number.replace(/[^\d]/g, "");
+    if (cleaned && !candidates.includes(cleaned)) {
+      candidates.push(cleaned);
+    }
+  }
+  return candidates;
+}
+
+/**
+ * Check whether a Chatwoot sender is allowed by the configured dmPolicy + allowFrom.
+ * Returns true when the sender should be allowed through.
+ */
+export function isChatwootSenderAllowed(params: {
+  dmPolicy: string;
+  allowFrom: string[];
+  sender?: ChatwootSender;
+}): boolean {
+  const { dmPolicy, allowFrom } = params;
+  // "open" policy allows everyone
+  if (dmPolicy === "open") {
+    return true;
+  }
+  // "disabled" policy blocks everyone
+  if (dmPolicy === "disabled") {
+    return false;
+  }
+  // With no allowFrom entries, allowlist blocks everyone; pairing blocks until paired
+  if (allowFrom.length === 0) {
+    return false;
+  }
+  // Wildcard allows everyone
+  if (allowFrom.includes("*")) {
+    return true;
+  }
+  const candidates = resolveChatwootSenderCandidates(params.sender);
+  // Check if any candidate matches any allowFrom entry
+  return candidates.some((candidate) => allowFrom.includes(candidate));
+}
+
+/**
+ * Build a set of matchable group IDs from a Chatwoot group sender payload.
+ * Users can put any of these values in `groupAllowFrom`:
+ * - Chatwoot numeric group contact ID (e.g. "1666")
+ * - Group JID from identifier (e.g. "6281380888035-1572323526@g.us")
+ * - Group JID from waha_whatsapp_chat_id (e.g. "120363364780250652@g.us")
+ */
+export function resolveChatwootGroupCandidates(sender?: ChatwootSender): string[] {
+  const candidates: string[] = [];
+  if (!sender) {
+    return candidates;
+  }
+  // Chatwoot numeric contact ID (group entity)
+  const id = String(sender.id ?? "");
+  if (id && id !== "unknown") {
+    candidates.push(id);
+  }
+  // Group identifier (e.g. "6281380888035-1572323526@g.us")
+  if (sender.identifier) {
+    candidates.push(sender.identifier);
+  }
+  // Group chat ID from WAHA custom attributes
+  const chatId =
+    typeof sender.custom_attributes?.waha_whatsapp_chat_id === "string"
+      ? sender.custom_attributes.waha_whatsapp_chat_id
+      : undefined;
+  if (chatId && chatId !== sender.identifier) {
+    candidates.push(chatId);
+  }
+  return candidates;
+}
+
+/**
+ * Check whether a Chatwoot group conversation is allowed by groupPolicy + groupAllowFrom.
+ * Returns true when the group should be allowed through.
+ */
+export function isChatwootGroupAllowed(params: {
+  groupPolicy: string;
+  groupAllowFrom: string[];
+  sender?: ChatwootSender;
+}): boolean {
+  const { groupPolicy, groupAllowFrom } = params;
+  // "open" policy allows all groups
+  if (groupPolicy === "open") {
+    return true;
+  }
+  // "disabled" policy blocks all groups
+  if (groupPolicy === "disabled") {
+    return false;
+  }
+  // With no groupAllowFrom entries, allowlist blocks all groups
+  if (groupAllowFrom.length === 0) {
+    return false;
+  }
+  // Wildcard allows all groups
+  if (groupAllowFrom.includes("*")) {
+    return true;
+  }
+  const candidates = resolveChatwootGroupCandidates(params.sender);
+  return candidates.some((candidate) => groupAllowFrom.includes(candidate));
 }
 
 function normalizeChatwootNumericId(value: unknown): number | undefined {
@@ -306,10 +463,60 @@ export async function handleChatwootWebhook(
     inboxName: payload.inbox?.name,
   });
   const to = conversationPeerId;
+  const isGroup = isWhatsAppGroupSender(payload.sender);
+  const chatType = isGroup ? ("group" as const) : ("direct" as const);
 
   deps.log?.(
-    `chatwoot: conversation=${conversationId} sender=${senderId} peer=${conversationPeerId}`,
+    `chatwoot: conversation=${conversationId} sender=${senderId} type=${chatType} peer=${conversationPeerId}`,
   );
+
+  // Enforce access policy (DM for direct conversations, group for groups).
+  if (isGroup) {
+    const groupPolicy = account.config.groupPolicy ?? "allowlist";
+    if (groupPolicy === "disabled") {
+      deps.log?.(`chatwoot: drop group conversation=${conversationId} (groupPolicy=disabled)`);
+      respondJson(res, 200, { status: "ignored", reason: "groupPolicy=disabled" });
+      return true;
+    }
+    if (groupPolicy !== "open") {
+      const configGroupAllowFrom = normalizeAllowFromList(account.config.groupAllowFrom);
+      const allowed = isChatwootGroupAllowed({
+        groupPolicy,
+        groupAllowFrom: configGroupAllowFrom,
+        sender: payload.sender,
+      });
+      if (!allowed) {
+        deps.log?.(
+          `chatwoot: drop group conversation=${conversationId} (groupPolicy=${groupPolicy}, not in groupAllowFrom)`,
+        );
+        respondJson(res, 200, {
+          status: "ignored",
+          reason: `groupPolicy=${groupPolicy} (not allowed)`,
+        });
+        return true;
+      }
+    }
+  } else {
+    const dmPolicy = account.config.dmPolicy ?? "open";
+    if (dmPolicy === "disabled") {
+      deps.log?.(`chatwoot: drop sender=${senderId} (dmPolicy=disabled)`);
+      respondJson(res, 200, { status: "ignored", reason: "dmPolicy=disabled" });
+      return true;
+    }
+    if (dmPolicy !== "open") {
+      const configAllowFrom = normalizeAllowFromList(account.config.allowFrom);
+      const allowed = isChatwootSenderAllowed({
+        dmPolicy,
+        allowFrom: configAllowFrom,
+        sender: payload.sender,
+      });
+      if (!allowed) {
+        deps.log?.(`chatwoot: drop sender=${senderId} (dmPolicy=${dmPolicy}, not in allowFrom)`);
+        respondJson(res, 200, { status: "ignored", reason: `dmPolicy=${dmPolicy} (not allowed)` });
+        return true;
+      }
+    }
+  }
 
   try {
     const core = deps.runtime;
@@ -318,23 +525,28 @@ export async function handleChatwootWebhook(
       cfg,
       channel: "chatwoot",
       accountId: account.accountId,
-      peer: { id: conversationPeerId, kind: "group" },
+      peer: { id: conversationPeerId, kind: isGroup ? "group" : "direct" },
     });
 
     const storePath = core.channel.session.resolveStorePath(undefined, {
       agentId: route.agentId,
     });
 
+    // Apply messagePrefix to inbound message body when configured.
+    const rawContent = content ?? "";
+    const messagePrefix = account.config.messagePrefix;
+    const prefixedBody = messagePrefix ? `${messagePrefix}${rawContent}` : rawContent;
+
     const ctxPayload = core.channel.reply.finalizeInboundContext({
-      Body: content ?? "",
-      RawBody: content ?? "",
-      CommandBody: content ?? "",
+      Body: prefixedBody,
+      RawBody: rawContent,
+      CommandBody: rawContent,
       From: from,
       To: to,
       ConversationLabel: conversationPeerId,
       SessionKey: route.sessionKey,
       AccountId: route.accountId,
-      ChatType: "group" as const,
+      ChatType: chatType,
       SenderName: senderName,
       SenderId: senderId,
       Provider: "chatwoot" as const,
