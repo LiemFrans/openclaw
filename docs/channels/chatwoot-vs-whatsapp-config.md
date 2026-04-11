@@ -26,13 +26,13 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | `dmPolicy`          | `"open"` (default)                     | `"pairing"` (default)                  |
 | `allowFrom`         | Contact IDs (number) or phone (string) | E.164 phone numbers (string)           |
 | `defaultTo`         | String                                 | E.164 or group JID                     |
-| `selfChatMode`      | —                                      | Bot on personal number safeguards      |
-| `groupPolicy`       | —                                      | `"allowlist"` (default)                |
-| `groupAllowFrom`    | —                                      | E.164 phone numbers for group senders  |
-| `groups`            | —                                      | Per-group config (mention, tools)      |
-| `contextVisibility` | —                                      | Supplemental context visibility policy |
+| `selfChatMode`      | Bot on own identity safeguards         | Bot on personal number safeguards      |
+| `groupPolicy`       | `"allowlist"` (default)                | `"allowlist"` (default)                |
+| `groupAllowFrom`    | Contact IDs or phone numbers           | E.164 phone numbers for group senders  |
+| `groups`            | Per-group config (mention, tools)      | Per-group config (mention, tools)      |
+| `contextVisibility` | Supplemental context visibility policy | Supplemental context visibility policy |
 
-**Key difference:** Chatwoot defaults to `"open"` because Chatwoot itself manages inbox access. WhatsApp defaults to `"pairing"` because the bot directly receives messages from any phone number. WhatsApp has full group chat support; Chatwoot does not have group concepts (Chatwoot conversations are always 1:1 between contact and agent).
+**Key difference:** Chatwoot defaults to `"open"` because Chatwoot itself manages inbox access. WhatsApp defaults to `"pairing"` because the bot directly receives messages from any phone number. Both channels now support group chat configuration, though Chatwoot group semantics depend on the Chatwoot instance's conversation model.
 
 ---
 
@@ -130,7 +130,7 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Category             | Chatwoot Settings | WhatsApp Settings |
 | -------------------- | :---------------: | :---------------: |
 | Connection/Auth      |         4         |    1 (authDir)    |
-| Access Control       |         3         |         7         |
+| Access Control       |         8         |         7         |
 | Message Delivery     |         1         |         8         |
 | Reactions            |         0         |         2         |
 | Media                |         0         |         1         |
@@ -138,7 +138,7 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Multi-Account        |         4         |         4         |
 | Actions/Tools        |         0         |         4         |
 | Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **12**       |      **34**       |
+| **Total unique**     |      **17**       |      **34**       |
 
 ---
 
