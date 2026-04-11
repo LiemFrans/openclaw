@@ -11,7 +11,7 @@ import {
 import { resolveChatwootAccount } from "./accounts.js";
 import { ChatwootClient } from "./client.js";
 import type { PluginRuntime } from "./runtime-api.js";
-import type { ChatwootMessageWebhookPayload, CoreConfig } from "./types.js";
+import type { ChatwootMessageWebhookPayload, ChatwootSender, CoreConfig } from "./types.js";
 
 const WEBHOOK_MAX_BODY_BYTES = 512 * 1024;
 const WEBHOOK_BODY_TIMEOUT_MS = 5_000;
@@ -63,6 +63,76 @@ export function buildChatwootSessionPeerId(params: { inboxId: string; senderId: 
   // Scope direct-chat sessions by inbox so one sender in different inboxes
   // cannot share the same session/thread state.
   return `chatwoot:${params.inboxId}:${params.senderId}`;
+}
+
+function isWhatsAppGroupSender(sender?: ChatwootSender): boolean {
+  if (sender?.identifier?.endsWith("@g.us")) {
+    return true;
+  }
+  const chatId = sender?.custom_attributes?.waha_whatsapp_chat_id;
+  return typeof chatId === "string" && chatId.endsWith("@g.us");
+}
+
+function deriveChannelName(sender?: ChatwootSender, inboxName?: string): string {
+  if (sender?.custom_attributes) {
+    for (const key of Object.keys(sender.custom_attributes)) {
+      if (key.startsWith("waha_whatsapp_")) {
+        return "whatsapp";
+      }
+    }
+  }
+  if (inboxName) {
+    const firstWord = inboxName.trim().split(/\s+/)[0]?.toLowerCase();
+    if (firstWord) {
+      return firstWord;
+    }
+  }
+  return "chat";
+}
+
+/**
+ * Build a descriptive peer ID for Chatwoot conversations.
+ *
+ * DM format:    chatwoot:whatsapp-{lid}-{jid}-{contact name}
+ * Group format: chatwoot:whatsapp-{group chat id}-{group name}
+ * Fallback:     chatwoot:{inboxId}:{conversationId}
+ */
+export function buildDescriptiveChatwootPeerId(params: {
+  inboxId: string;
+  conversationId: number;
+  sender?: ChatwootSender;
+  inboxName?: string;
+}): string {
+  const { sender, inboxName } = params;
+  const channel = deriveChannelName(sender, inboxName);
+
+  if (isWhatsAppGroupSender(sender)) {
+    const groupId =
+      sender?.identifier ??
+      (typeof sender?.custom_attributes?.waha_whatsapp_chat_id === "string"
+        ? sender.custom_attributes.waha_whatsapp_chat_id
+        : "");
+    const groupName = sender?.name ?? "";
+    if (groupId) {
+      return `chatwoot:${channel}-${groupId}-${groupName}`;
+    }
+  } else if (sender?.custom_attributes) {
+    const lid =
+      typeof sender.custom_attributes.waha_whatsapp_lid === "string"
+        ? sender.custom_attributes.waha_whatsapp_lid
+        : "";
+    const jid =
+      typeof sender.custom_attributes.waha_whatsapp_jid === "string"
+        ? sender.custom_attributes.waha_whatsapp_jid
+        : "";
+    const name = sender.name ?? "";
+    if (lid || jid) {
+      return `chatwoot:${channel}-${lid}-${jid}-${name}`;
+    }
+  }
+
+  // Fallback for non-WAHA or missing attributes
+  return `chatwoot:${params.inboxId}:${params.conversationId}`;
 }
 
 function getHeader(headers: IncomingMessage["headers"], name: string): string | undefined {
@@ -225,12 +295,21 @@ export async function handleChatwootWebhook(
   const senderId = String(payload.sender?.id ?? "unknown");
   const senderName = payload.sender?.name;
   const from = buildChatwootSessionPeerId({ inboxId, senderId });
-  const to = `chatwoot:${inboxId}:${conversationId}`;
 
-  // Each Chatwoot conversation maps to its own session (like WhatsApp groups).
-  // Use conversation-scoped peer with kind "group" so the session key includes
-  // the peer ID, giving each conversation its own isolated session.
-  const conversationPeerId = `chatwoot:${inboxId}:${conversationId}`;
+  // Build a descriptive peer ID using WAHA WhatsApp attributes when available.
+  // DM: chatwoot:whatsapp-{lid}-{jid}-{name}
+  // Group: chatwoot:whatsapp-{group id}-{group name}
+  const conversationPeerId = buildDescriptiveChatwootPeerId({
+    inboxId,
+    conversationId,
+    sender: payload.sender,
+    inboxName: payload.inbox?.name,
+  });
+  const to = conversationPeerId;
+
+  deps.log?.(
+    `chatwoot: conversation=${conversationId} sender=${senderId} peer=${conversationPeerId}`,
+  );
 
   try {
     const core = deps.runtime;
@@ -252,6 +331,7 @@ export async function handleChatwootWebhook(
       CommandBody: content ?? "",
       From: from,
       To: to,
+      ConversationLabel: conversationPeerId,
       SessionKey: route.sessionKey,
       AccountId: route.accountId,
       ChatType: "group" as const,

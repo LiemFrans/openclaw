@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { describe, it, expect } from "vitest";
 import {
   buildChatwootSessionPeerId,
+  buildDescriptiveChatwootPeerId,
   isIncomingMessageType,
   resolveChatwootConversationId,
   verifyChatwootWebhookSignature,
@@ -175,5 +176,114 @@ describe("resolveChatwootConversationId", () => {
 describe("buildChatwootSessionPeerId", () => {
   it("scopes peer identity by inbox and sender", () => {
     expect(buildChatwootSessionPeerId({ inboxId: "9", senderId: "1658" })).toBe("chatwoot:9:1658");
+  });
+});
+
+describe("buildDescriptiveChatwootPeerId", () => {
+  it("builds DM peer ID from WAHA WhatsApp lid+jid", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1702,
+        sender: {
+          id: 1658,
+          name: "Parkee Frans",
+          phone_number: "+6285959823371",
+          custom_attributes: {
+            waha_whatsapp_jid: "6285959823371@c.us",
+            waha_whatsapp_lid: "4372444528669@lid",
+            waha_whatsapp_chat_id: "4372444528669@lid",
+          },
+        },
+        inboxName: "Whatsapp Api Cici",
+      }),
+    ).toBe("chatwoot:whatsapp-4372444528669@lid-6285959823371@c.us-Parkee Frans");
+  });
+
+  it("builds group peer ID from WAHA WhatsApp group identifier", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1689,
+        sender: {
+          id: 1666,
+          name: "PARKEE Agent General & Production (Group)",
+          identifier: "6281380888035-1572323526@g.us",
+          custom_attributes: {
+            waha_whatsapp_chat_id: "6281380888035-1572323526@g.us",
+          },
+        },
+        inboxName: "Whatsapp Api Cici",
+      }),
+    ).toBe(
+      "chatwoot:whatsapp-6281380888035-1572323526@g.us-PARKEE Agent General & Production (Group)",
+    );
+  });
+
+  it("falls back to group identifier from custom_attributes when identifier is missing", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1694,
+        sender: {
+          id: 1670,
+          name: "Parkee Agent Development (Group)",
+          custom_attributes: {
+            waha_whatsapp_chat_id: "120363364780250652@g.us",
+          },
+        },
+      }),
+    ).toBe("chatwoot:whatsapp-120363364780250652@g.us-Parkee Agent Development (Group)");
+  });
+
+  it("builds DM peer ID with jid only when lid is missing", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1700,
+        sender: {
+          id: 1680,
+          name: "John Doe",
+          custom_attributes: {
+            waha_whatsapp_jid: "6281234567890@c.us",
+          },
+        },
+      }),
+    ).toBe("chatwoot:whatsapp--6281234567890@c.us-John Doe");
+  });
+
+  it("falls back to inbox:conversationId when no WAHA attributes", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1700,
+        sender: { id: 1680, name: "Test User" },
+        inboxName: "Email Support",
+      }),
+    ).toBe("chatwoot:9:1700");
+  });
+
+  it("falls back to inbox:conversationId when sender is missing", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "9",
+        conversationId: 1700,
+      }),
+    ).toBe("chatwoot:9:1700");
+  });
+
+  it("derives channel name from inbox name when no WAHA attributes but has non-whatsapp custom_attributes", () => {
+    expect(
+      buildDescriptiveChatwootPeerId({
+        inboxId: "5",
+        conversationId: 500,
+        sender: {
+          id: 100,
+          name: "Someone",
+          custom_attributes: { some_other_attr: "value" },
+        },
+        inboxName: "Telegram Bot",
+      }),
+    ).toBe("chatwoot:5:500");
   });
 });
