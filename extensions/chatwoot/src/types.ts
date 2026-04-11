@@ -2,6 +2,7 @@ import type {
   DmPolicy,
   GroupPolicy,
   ContextVisibilityMode,
+  BlockStreamingCoalesceConfig,
   OpenClawConfig,
   BaseProbeResult,
 } from "./runtime-api.js";
@@ -23,6 +24,20 @@ export type ChatwootAccountConfig = {
   allowFrom?: Array<string | number>;
   defaultTo?: string;
   blockStreaming?: boolean;
+  /** Merge streamed block replies before sending. */
+  blockStreamingCoalesce?: BlockStreamingCoalesceConfig;
+  /** Max characters per outbound text chunk. */
+  textChunkLimit?: number;
+  /** Chunking mode: "length" (split by size) or "newline" (split on newlines). */
+  chunkMode?: "length" | "newline";
+  /** Debounce window (ms) for batching rapid inbound messages. */
+  debounceMs?: number;
+  /** Send read receipts for incoming messages. */
+  sendReadReceipts?: boolean;
+  /** Inbound message prefix override. */
+  messagePrefix?: string;
+  /** Outbound response prefix override. */
+  responsePrefix?: string;
   /** Same-phone setup (bot uses your personal number). */
   selfChatMode?: boolean;
   /** Group message policy (default: allowlist). */
