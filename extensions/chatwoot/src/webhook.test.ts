@@ -3,11 +3,14 @@ import { describe, it, expect, beforeAll } from "vitest";
 import {
   buildChatwootSessionPeerId,
   buildDescriptiveChatwootPeerId,
+  isBotMentioned,
   isChatwootGroupAllowed,
   isChatwootSenderAllowed,
   isIncomingMessageType,
   resolveChatwootConversationId,
   resolveChatwootGroupCandidates,
+  resolveChatwootGroupConfig,
+  resolveChatwootRequireMention,
   resolveChatwootSenderCandidates,
   verifyChatwootWebhookSignature,
 } from "./webhook.js";
@@ -970,5 +973,115 @@ describe("isChatwootGroupAllowed", () => {
         sender: blockedGroup,
       }),
     ).toBe(true);
+  });
+});
+
+describe("resolveChatwootGroupConfig", () => {
+  const groupSender = {
+    id: 1666,
+    name: "PARKEE Agent General (Group)",
+    identifier: "6281380888035-1572323526@g.us",
+    custom_attributes: {
+      waha_whatsapp_chat_id: "6281380888035-1572323526@g.us",
+    },
+  };
+
+  it("returns empty when no groups config", () => {
+    expect(resolveChatwootGroupConfig({ sender: groupSender })).toEqual({});
+  });
+
+  it("returns empty when groups map has no match", () => {
+    const result = resolveChatwootGroupConfig({
+      groups: { "unrelated@g.us": { requireMention: true } },
+      sender: groupSender,
+    });
+    expect(result.groupConfig).toBeUndefined();
+    expect(result.wildcardConfig).toBeUndefined();
+  });
+
+  it("matches by group JID", () => {
+    const groups = {
+      "6281380888035-1572323526@g.us": { requireMention: true },
+    };
+    const result = resolveChatwootGroupConfig({ groups, sender: groupSender });
+    expect(result.groupConfig).toEqual({ requireMention: true });
+  });
+
+  it("matches by Chatwoot contact ID", () => {
+    const groups = {
+      "1666": { requireMention: false },
+    };
+    const result = resolveChatwootGroupConfig({ groups, sender: groupSender });
+    expect(result.groupConfig).toEqual({ requireMention: false });
+  });
+
+  it("returns wildcard config as fallback", () => {
+    const groups = {
+      "*": { requireMention: true },
+    };
+    const result = resolveChatwootGroupConfig({ groups, sender: groupSender });
+    expect(result.groupConfig).toBeUndefined();
+    expect(result.wildcardConfig).toEqual({ requireMention: true });
+  });
+
+  it("exact match takes priority over wildcard", () => {
+    const groups = {
+      "*": { requireMention: true },
+      "6281380888035-1572323526@g.us": { requireMention: false },
+    };
+    const result = resolveChatwootGroupConfig({ groups, sender: groupSender });
+    expect(result.groupConfig).toEqual({ requireMention: false });
+    expect(result.wildcardConfig).toEqual({ requireMention: true });
+  });
+});
+
+describe("resolveChatwootRequireMention", () => {
+  it("returns false by default", () => {
+    expect(resolveChatwootRequireMention({})).toBe(false);
+  });
+
+  it("returns groupConfig value when set", () => {
+    expect(resolveChatwootRequireMention({ groupConfig: { requireMention: true } })).toBe(true);
+  });
+
+  it("returns wildcardConfig value when groupConfig absent", () => {
+    expect(resolveChatwootRequireMention({ wildcardConfig: { requireMention: true } })).toBe(true);
+  });
+
+  it("groupConfig overrides wildcardConfig", () => {
+    expect(
+      resolveChatwootRequireMention({
+        groupConfig: { requireMention: false },
+        wildcardConfig: { requireMention: true },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("isBotMentioned", () => {
+  it("returns false for empty content", () => {
+    expect(isBotMentioned(undefined, "openclaw")).toBe(false);
+    expect(isBotMentioned("", "openclaw")).toBe(false);
+  });
+
+  it("detects @openclaw mention", () => {
+    expect(isBotMentioned("Hey @openclaw help me", "openclaw")).toBe(true);
+  });
+
+  it("detects openclaw without @ prefix", () => {
+    expect(isBotMentioned("openclaw can you check this?", "openclaw")).toBe(true);
+  });
+
+  it("is case insensitive", () => {
+    expect(isBotMentioned("Hey @OpenClaw help", "openclaw")).toBe(true);
+    expect(isBotMentioned("OPENCLAW please", "openclaw")).toBe(true);
+  });
+
+  it("requires word boundary", () => {
+    expect(isBotMentioned("openclawbird is here", "openclaw")).toBe(false);
+  });
+
+  it("returns false when bot name not in content", () => {
+    expect(isBotMentioned("Hello everyone", "openclaw")).toBe(false);
   });
 });
