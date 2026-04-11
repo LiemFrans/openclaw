@@ -5,6 +5,7 @@ import {
   DmConfigSchema,
   DmPolicySchema,
   GroupPolicySchema,
+  MarkdownConfigSchema,
   ToolPolicySchema,
   buildChannelConfigSchema,
 } from "openclaw/plugin-sdk/channel-config-schema";
@@ -31,6 +32,31 @@ const ChatwootGroupEntrySchema = z
   .optional();
 
 const ChatwootGroupsSchema = z.record(z.string(), ChatwootGroupEntrySchema).optional();
+
+const ChatwootActionSchema = z
+  .object({
+    reactions: z.boolean().optional(),
+    sendMessage: z.boolean().optional(),
+    polls: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
+const ChatwootHeartbeatSchema = z
+  .object({
+    showOk: z.boolean().optional(),
+    showAlerts: z.boolean().optional(),
+    useIndicator: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
+const ChatwootHealthMonitorSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
 
 export const ChatwootAccountSchemaBase = z
   .object({
@@ -62,12 +88,18 @@ export const ChatwootAccountSchemaBase = z
     groupAllowFrom: AllowFromListSchema,
     groups: ChatwootGroupsSchema,
     contextVisibility: ContextVisibilityModeSchema.optional(),
+    capabilities: z.array(z.string()).optional(),
+    markdown: MarkdownConfigSchema,
+    heartbeat: ChatwootHeartbeatSchema,
+    healthMonitor: ChatwootHealthMonitorSchema,
   })
   .strict();
 
 export const ChatwootConfigSchema = ChatwootAccountSchemaBase.extend({
   accounts: z.record(z.string(), ChatwootAccountSchemaBase.optional()).optional(),
   defaultAccount: z.string().optional(),
+  actions: ChatwootActionSchema,
+  configWrites: z.boolean().optional(),
 });
 
 export const ChatwootChannelConfigSchema = buildChannelConfigSchema(ChatwootConfigSchema);
