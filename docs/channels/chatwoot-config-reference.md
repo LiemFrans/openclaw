@@ -115,6 +115,82 @@ Default delivery target for CLI `openclaw message send --deliver` when no explic
 
 - **Type:** `string`
 
+### `selfChatMode`
+
+When `true`, the bot treats messages from its own number/identity as user messages. This is a safeguard for scenarios where the bot is running on a personal account. Prevents the bot from replying to itself in an infinite loop.
+
+- **Type:** `boolean`
+- **Default:** not set
+
+### `groupPolicy`
+
+Controls how the bot handles group conversations.
+
+| Value         | Description                                      | Default |
+| ------------- | ------------------------------------------------ | ------- |
+| `"allowlist"` | Only groups listed in `groups` get bot responses | **Yes** |
+| `"open"`      | All group conversations are accepted             |         |
+| `"disabled"`  | Block all group messages                         |         |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      groupPolicy: "allowlist",
+    },
+  },
+}
+```
+
+### `groupAllowFrom`
+
+Array of allowed sender identifiers for group contexts. Only relevant when the bot is participating in group conversations.
+
+- **Type:** `(string | number)[]`
+
+### `groups`
+
+Per-group configuration overrides, keyed by group identifier. Each group entry can override tool access and mention behavior.
+
+- **Type:** `Record<string, GroupEntry>`
+
+Each group entry supports:
+
+| Field            | Type                     | Description                     |
+| ---------------- | ------------------------ | ------------------------------- |
+| `requireMention` | `boolean`                | Only respond when @mentioned    |
+| `tools`          | `string` enum            | Tool access policy              |
+| `toolsBySender`  | `Record<string, string>` | Per-sender tool policy in group |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      groupPolicy: "allowlist",
+      groups: {
+        "support-team": {
+          requireMention: true,
+          tools: "enabled",
+        },
+      },
+    },
+  },
+}
+```
+
+### `contextVisibility`
+
+Controls how supplemental context (tool results, system messages) is presented in conversations.
+
+| Value       | Description                                          |
+| ----------- | ---------------------------------------------------- |
+| `"full"`    | Show all context including tool calls and results    |
+| `"minimal"` | Show only essential context                          |
+| `"hidden"`  | Hide supplemental context from the conversation view |
+
+- **Type:** `string` enum
+- **Default:** not set
+
 ---
 
 ## Delivery
@@ -592,17 +668,22 @@ This keeps secrets out of `openclaw.json` while still allowing non-secret behavi
 
 ## Settings Quick Reference
 
-| Setting          | Type                      | Default  | Scope            | Description                                                |
-| ---------------- | ------------------------- | -------- | ---------------- | ---------------------------------------------------------- |
-| `baseUrl`        | `string`                  | —        | channel, account | Chatwoot instance URL                                      |
-| `apiKey`         | `string`                  | —        | channel, account | Agent Bot API access token                                 |
-| `accountId`      | `string`                  | —        | channel, account | Chatwoot account ID                                        |
-| `webhookSecret`  | `string`                  | —        | channel, account | Webhook signature verification secret                      |
-| `dmPolicy`       | `string` enum             | `"open"` | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
-| `allowFrom`      | `(string \| number)[]`    | —        | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
-| `defaultTo`      | `string`                  | —        | channel, account | Default CLI delivery target                                |
-| `blockStreaming` | `boolean`                 | —        | channel, account | Disable streaming, send full responses                     |
-| `name`           | `string`                  | —        | channel, account | Display name for CLI/UI                                    |
-| `enabled`        | `boolean`                 | `true`   | channel, account | Enable/disable this account                                |
-| `accounts`       | `Record<string, Account>` | —        | channel only     | Per-account configurations                                 |
-| `defaultAccount` | `string`                  | —        | channel only     | Default account ID for multi-account                       |
+| Setting             | Type                      | Default       | Scope            | Description                                                |
+| ------------------- | ------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
+| `baseUrl`           | `string`                  | —             | channel, account | Chatwoot instance URL                                      |
+| `apiKey`            | `string`                  | —             | channel, account | Agent Bot API access token                                 |
+| `accountId`         | `string`                  | —             | channel, account | Chatwoot account ID                                        |
+| `webhookSecret`     | `string`                  | —             | channel, account | Webhook signature verification secret                      |
+| `dmPolicy`          | `string` enum             | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
+| `allowFrom`         | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
+| `defaultTo`         | `string`                  | —             | channel, account | Default CLI delivery target                                |
+| `selfChatMode`      | `boolean`                 | —             | channel, account | Treat own messages as user messages                        |
+| `groupPolicy`       | `string` enum             | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
+| `groupAllowFrom`    | `(string \| number)[]`    | —             | channel, account | Allowed sender IDs in group contexts                       |
+| `groups`            | `Record<string, Group>`   | —             | channel, account | Per-group config (mention, tools)                          |
+| `contextVisibility` | `string` enum             | —             | channel, account | Supplemental context visibility policy                     |
+| `blockStreaming`    | `boolean`                 | —             | channel, account | Disable streaming, send full responses                     |
+| `name`              | `string`                  | —             | channel, account | Display name for CLI/UI                                    |
+| `enabled`           | `boolean`                 | `true`        | channel, account | Enable/disable this account                                |
+| `accounts`          | `Record<string, Account>` | —             | channel only     | Per-account configurations                                 |
+| `defaultAccount`    | `string`                  | —             | channel only     | Default account ID for multi-account                       |
