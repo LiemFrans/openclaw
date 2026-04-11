@@ -52,6 +52,7 @@ export const ChatwootAccountSchemaBase = z
     responsePrefix: z.string().optional(),
     reactionLevel: z.enum(["off", "ack", "minimal", "extensive"]).optional(),
     ackReaction: ChatwootAckReactionSchema,
+    mediaMaxMb: z.number().positive().optional().default(50),
     selfChatMode: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     groupAllowFrom: AllowFromListSchema,

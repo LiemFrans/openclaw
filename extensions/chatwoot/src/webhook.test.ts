@@ -465,3 +465,32 @@ describe("ChatwootConfigSchema – reactions", () => {
     expect(ChatwootConfigSchema.safeParse({ ackReaction: { unknown: true } }).success).toBe(false);
   });
 });
+
+describe("ChatwootConfigSchema – media", () => {
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("applies mediaMaxMb default of 50", () => {
+    const result = ChatwootConfigSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mediaMaxMb).toBe(50);
+    }
+  });
+
+  it("accepts custom mediaMaxMb", () => {
+    const result = ChatwootConfigSchema.safeParse({ mediaMaxMb: 100 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mediaMaxMb).toBe(100);
+    }
+  });
+
+  it("rejects mediaMaxMb zero or negative", () => {
+    expect(ChatwootConfigSchema.safeParse({ mediaMaxMb: 0 }).success).toBe(false);
+    expect(ChatwootConfigSchema.safeParse({ mediaMaxMb: -10 }).success).toBe(false);
+  });
+});
