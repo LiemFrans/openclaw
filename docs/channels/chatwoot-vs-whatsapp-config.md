@@ -38,18 +38,18 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 
 ## Message Delivery
 
-| Setting                  | Chatwoot | WhatsApp                                    |
-| ------------------------ | -------- | ------------------------------------------- |
-| `blockStreaming`         | Yes      | Yes                                         |
-| `blockStreamingCoalesce` | —        | Merge streamed block replies before sending |
-| `textChunkLimit`         | —        | Max chars per chunk (default: 4000)         |
-| `chunkMode`              | —        | `"length"` or `"newline"`                   |
-| `debounceMs`             | —        | Batch rapid messages (default: 0)           |
-| `sendReadReceipts`       | —        | Send read receipts (default: true)          |
-| `messagePrefix`          | —        | Inbound message prefix override             |
-| `responsePrefix`         | —        | Outbound response prefix override           |
+| Setting                  | Chatwoot                                    | WhatsApp                                    |
+| ------------------------ | ------------------------------------------- | ------------------------------------------- |
+| `blockStreaming`         | Yes                                         | Yes                                         |
+| `blockStreamingCoalesce` | Merge streamed block replies before sending | Merge streamed block replies before sending |
+| `textChunkLimit`         | Max chars per chunk                         | Max chars per chunk (default: 4000)         |
+| `chunkMode`              | `"length"` or `"newline"`                   | `"length"` or `"newline"`                   |
+| `debounceMs`             | Batch rapid messages (default: 0)           | Batch rapid messages (default: 0)           |
+| `sendReadReceipts`       | Send read receipts                          | Send read receipts (default: true)          |
+| `messagePrefix`          | Inbound message prefix override             | Inbound message prefix override             |
+| `responsePrefix`         | Outbound response prefix override           | Outbound response prefix override           |
 
-**Key difference:** WhatsApp has extensive delivery controls (chunking, debounce, read receipts, prefixes). Chatwoot delivery is simpler — messages are sent via REST API to Chatwoot, which handles its own delivery, formatting, and read receipts.
+**Key difference:** Both channels now support the same delivery controls. In practice, Chatwoot delivers messages via REST API, so chunking and debounce behavior may differ slightly from WhatsApp's persistent WebSocket delivery.
 
 ---
 
@@ -131,14 +131,14 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | -------------------- | :---------------: | :---------------: |
 | Connection/Auth      |         4         |    1 (authDir)    |
 | Access Control       |         8         |         7         |
-| Message Delivery     |         1         |         8         |
+| Message Delivery     |         8         |         8         |
 | Reactions            |         0         |         2         |
 | Media                |         0         |         1         |
 | Session/History      |         0         |         3         |
 | Multi-Account        |         4         |         4         |
 | Actions/Tools        |         0         |         4         |
 | Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **17**       |      **34**       |
+| **Total unique**     |      **24**       |      **34**       |
 
 ---
 
