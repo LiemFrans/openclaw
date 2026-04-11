@@ -494,3 +494,46 @@ describe("ChatwootConfigSchema – media", () => {
     expect(ChatwootConfigSchema.safeParse({ mediaMaxMb: -10 }).success).toBe(false);
   });
 });
+
+describe("ChatwootConfigSchema – session and history", () => {
+  let ChatwootConfigSchema: (typeof import("./config-schema.js"))["ChatwootConfigSchema"];
+
+  beforeAll(async () => {
+    ({ ChatwootConfigSchema } = await import("./config-schema.js"));
+  });
+
+  it("accepts historyLimit non-negative integer", () => {
+    expect(ChatwootConfigSchema.safeParse({ historyLimit: 0 }).success).toBe(true);
+    expect(ChatwootConfigSchema.safeParse({ historyLimit: 100 }).success).toBe(true);
+  });
+
+  it("rejects historyLimit negative", () => {
+    expect(ChatwootConfigSchema.safeParse({ historyLimit: -1 }).success).toBe(false);
+  });
+
+  it("accepts dmHistoryLimit non-negative integer", () => {
+    expect(ChatwootConfigSchema.safeParse({ dmHistoryLimit: 0 }).success).toBe(true);
+    expect(ChatwootConfigSchema.safeParse({ dmHistoryLimit: 50 }).success).toBe(true);
+  });
+
+  it("rejects dmHistoryLimit negative", () => {
+    expect(ChatwootConfigSchema.safeParse({ dmHistoryLimit: -1 }).success).toBe(false);
+  });
+
+  it("accepts dms record with DmConfig entries", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      dms: {
+        "user-42": { historyLimit: 20 },
+        "user-99": {},
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects dms entry with unknown fields", () => {
+    const result = ChatwootConfigSchema.safeParse({
+      dms: { "user-1": { unknown: true } },
+    });
+    expect(result.success).toBe(false);
+  });
+});
