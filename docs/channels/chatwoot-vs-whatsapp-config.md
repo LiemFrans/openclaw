@@ -66,11 +66,11 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 
 ## Media
 
-| Setting      | Chatwoot | WhatsApp                                |
-| ------------ | -------- | --------------------------------------- |
-| `mediaMaxMb` | —        | Max media file size in MB (default: 50) |
+| Setting      | Chatwoot                                | WhatsApp                                |
+| ------------ | --------------------------------------- | --------------------------------------- |
+| `mediaMaxMb` | Max media file size in MB (default: 50) | Max media file size in MB (default: 50) |
 
-**Key difference:** WhatsApp enforces media size limits locally. Chatwoot media handling is managed by the Chatwoot instance (file uploads go through Chatwoot's storage).
+**Key difference:** Both channels enforce the same media size limit configuration. Actual upload handling is managed by each platform's backend.
 
 ---
 
@@ -133,12 +133,12 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Access Control       |         8         |         7         |
 | Message Delivery     |         8         |         8         |
 | Reactions            |         2         |         2         |
-| Media                |         0         |         1         |
+| Media                |         1         |         1         |
 | Session/History      |         0         |         3         |
 | Multi-Account        |         4         |         4         |
 | Actions/Tools        |         0         |         4         |
 | Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **26**       |      **34**       |
+| **Total unique**     |      **27**       |      **34**       |
 
 ---
 
