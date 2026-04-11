@@ -101,27 +101,27 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 
 ## Actions and Tools
 
-| Setting               | Chatwoot | WhatsApp                                      |
-| --------------------- | -------- | --------------------------------------------- |
-| `actions.reactions`   | —        | Allow agent to send reactions                 |
-| `actions.sendMessage` | —        | Allow agent to send messages                  |
-| `actions.polls`       | —        | Allow agent to create polls                   |
-| `configWrites`        | —        | Allow config writes from chat (default: true) |
+| Setting               | Chatwoot                      | WhatsApp                                      |
+| --------------------- | ----------------------------- | --------------------------------------------- |
+| `actions.reactions`   | Allow agent to send reactions | Allow agent to send reactions                 |
+| `actions.sendMessage` | Allow agent to send messages  | Allow agent to send messages                  |
+| `actions.polls`       | Allow agent to create polls   | Allow agent to create polls                   |
+| `configWrites`        | Allow config writes from chat | Allow config writes from chat (default: true) |
 
-**Key difference:** WhatsApp has granular tool/action gating. Chatwoot does not expose per-action gating because outbound actions go through Chatwoot's API which has its own permission model.
+**Key difference:** Both channels support the same action gating model. The specific tool capabilities may vary based on what each platform supports natively.
 
 ---
 
 ## Advanced / Operational
 
-| Setting         | Chatwoot | WhatsApp                               |
-| --------------- | -------- | -------------------------------------- |
-| `capabilities`  | —        | Provider capability tags               |
-| `markdown`      | —        | Markdown formatting overrides (tables) |
-| `heartbeat`     | —        | Heartbeat visibility settings          |
-| `healthMonitor` | —        | Channel health monitor overrides       |
+| Setting         | Chatwoot                               | WhatsApp                               |
+| --------------- | -------------------------------------- | -------------------------------------- |
+| `capabilities`  | Provider capability tags               | Provider capability tags               |
+| `markdown`      | Markdown formatting overrides (tables) | Markdown formatting overrides (tables) |
+| `heartbeat`     | Heartbeat visibility settings          | Heartbeat visibility settings          |
+| `healthMonitor` | Channel health monitor overrides       | Channel health monitor overrides       |
 
-**Key difference:** WhatsApp channel runs a persistent WebSocket connection (Baileys) with heartbeat and health monitoring. Chatwoot uses a stateless webhook model — health is determined by Chatwoot API reachability.
+**Key difference:** Both channels now support the same advanced operational configuration. WhatsApp runs a persistent WebSocket connection (Baileys) where heartbeat and health monitoring are critical, while Chatwoot uses a stateless webhook model where these settings serve as optional operational controls.
 
 ---
 
@@ -136,9 +136,9 @@ Side-by-side comparison of all configuration settings available in the Chatwoot 
 | Media                |         1         |         1         |
 | Session/History      |         3         |         3         |
 | Multi-Account        |         4         |         4         |
-| Actions/Tools        |         0         |         4         |
-| Advanced/Operational |         0         |         4         |
-| **Total unique**     |      **30**       |      **34**       |
+| Actions/Tools        |         4         |         4         |
+| Advanced/Operational |         4         |         4         |
+| **Total unique**     |      **38**       |      **34**       |
 
 ---
 
