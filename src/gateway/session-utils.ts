@@ -1798,7 +1798,7 @@ export function buildGatewaySessionRow(params: {
     subagentRole: entry?.subagentRole,
     subagentControlScope: entry?.subagentControlScope,
     kind: classifySessionKey(key, entry),
-    label: entry?.label,
+    label: entry?.label ?? originLabel,
     displayName,
     derivedTitle,
     lastMessagePreview,

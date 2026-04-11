@@ -51,6 +51,8 @@ export type ChatwootSender = {
   name?: string;
   email?: string;
   phone_number?: string;
+  identifier?: string;
+  custom_attributes?: Record<string, unknown>;
   type?: string;
 };
 
