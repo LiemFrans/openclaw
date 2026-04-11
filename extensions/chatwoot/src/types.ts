@@ -3,6 +3,7 @@ import type {
   GroupPolicy,
   ContextVisibilityMode,
   BlockStreamingCoalesceConfig,
+  DmConfig,
   OpenClawConfig,
   BaseProbeResult,
 } from "./runtime-api.js";
@@ -53,6 +54,12 @@ export type ChatwootAccountConfig = {
   ackReaction?: ChatwootAckReactionConfig;
   /** Max media file size in MB. */
   mediaMaxMb?: number;
+  /** Max group messages buffered for context. */
+  historyLimit?: number;
+  /** Max DM turns for history context. */
+  dmHistoryLimit?: number;
+  /** Per-DM config overrides keyed by user ID. */
+  dms?: Record<string, DmConfig>;
   /** Same-phone setup (bot uses your personal number). */
   selfChatMode?: boolean;
   /** Group message policy (default: allowlist). */
