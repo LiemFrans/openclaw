@@ -232,16 +232,57 @@ export function resolveChatwootRequireMention(params: {
   return false;
 }
 
+function toMentionTarget(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const withoutAt = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+  if (!withoutAt) {
+    return undefined;
+  }
+  // Allow plain phone references such as @6285959823371.
+  if (/^\+?\d+$/.test(withoutAt)) {
+    return withoutAt.replace(/^\+/, "");
+  }
+  // Allow JID-like entries from allowFrom (e.g. 6285...@c.us, lid-6285...@c.us).
+  const phoneFromJid = extractPhoneFromJid(withoutAt.replace(/^lid-/, ""));
+  if (phoneFromJid) {
+    return phoneFromJid;
+  }
+  // Allow plain bot aliases (e.g. openclaw).
+  if (/^[a-z0-9._-]+$/i.test(withoutAt)) {
+    return withoutAt;
+  }
+  return undefined;
+}
+
+export function resolveChatwootMentionTargets(allowFrom?: Array<string | number>): string[] {
+  const targets = new Set<string>(["openclaw"]);
+  for (const entry of normalizeAllowFromList(allowFrom)) {
+    const target = toMentionTarget(entry);
+    if (target) {
+      targets.add(target.toLowerCase());
+    }
+  }
+  return [...targets];
+}
+
 /**
- * Check whether the bot name or @mention appears in the message content.
- * Matches case-insensitive: "@openclaw", "openclaw", or "OpenClaw" anywhere in text.
+ * Check whether an explicit @mention token appears in the message content.
+ * Matches case-insensitive mentions such as "@openclaw" or "@6285959823371".
  */
 export function isBotMentioned(content: string | undefined, botName: string): boolean {
   if (!content || !botName) {
     return false;
   }
-  const escaped = botName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`(?:@)?${escaped}\\b`, "i");
+  const target = toMentionTarget(botName);
+  if (!target) {
+    return false;
+  }
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Mention must be explicitly prefixed with '@' to avoid false positives from plain words.
+  const pattern = new RegExp(`(?:^|[\\s(])@${escaped}(?=$|[\\s).,!?;:])`, "i");
   return pattern.test(content);
 }
 
@@ -584,8 +625,8 @@ export async function handleChatwootWebhook(
     });
     const requireMention = resolveChatwootRequireMention({ groupConfig, wildcardConfig });
     if (requireMention) {
-      const botName = "openclaw";
-      const mentioned = isBotMentioned(content, botName);
+      const mentionTargets = resolveChatwootMentionTargets(account.config.allowFrom);
+      const mentioned = mentionTargets.some((target) => isBotMentioned(content, target));
       if (!mentioned) {
         deps.log?.(
           `chatwoot: drop group conversation=${conversationId} (requireMention, not mentioned)`,

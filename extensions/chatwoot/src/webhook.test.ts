@@ -10,6 +10,7 @@ import {
   resolveChatwootConversationId,
   resolveChatwootGroupCandidates,
   resolveChatwootGroupConfig,
+  resolveChatwootMentionTargets,
   resolveChatwootRequireMention,
   resolveChatwootSenderCandidates,
   verifyChatwootWebhookSignature,
@@ -1068,20 +1069,51 @@ describe("isBotMentioned", () => {
     expect(isBotMentioned("Hey @openclaw help me", "openclaw")).toBe(true);
   });
 
-  it("detects openclaw without @ prefix", () => {
-    expect(isBotMentioned("openclaw can you check this?", "openclaw")).toBe(true);
+  it("does not match plain bot name without @ prefix", () => {
+    expect(isBotMentioned("openclaw can you check this?", "openclaw")).toBe(false);
   });
 
   it("is case insensitive", () => {
     expect(isBotMentioned("Hey @OpenClaw help", "openclaw")).toBe(true);
-    expect(isBotMentioned("OPENCLAW please", "openclaw")).toBe(true);
+    expect(isBotMentioned("@OPENCLAW please", "openclaw")).toBe(true);
   });
 
   it("requires word boundary", () => {
-    expect(isBotMentioned("openclawbird is here", "openclaw")).toBe(false);
+    expect(isBotMentioned("@openclawbird is here", "openclaw")).toBe(false);
   });
 
   it("returns false when bot name not in content", () => {
     expect(isBotMentioned("Hello everyone", "openclaw")).toBe(false);
+  });
+
+  it("supports numeric mention targets", () => {
+    expect(isBotMentioned("hi @6285959823371", "6285959823371")).toBe(true);
+    expect(isBotMentioned("hi 6285959823371", "6285959823371")).toBe(false);
+  });
+});
+
+describe("resolveChatwootMentionTargets", () => {
+  it("includes default openclaw mention target", () => {
+    expect(resolveChatwootMentionTargets()).toEqual(["openclaw"]);
+  });
+
+  it("includes numeric phone targets from allowFrom", () => {
+    expect(resolveChatwootMentionTargets(["6285959823371", "+6285156249703"]).toSorted()).toEqual([
+      "6285156249703",
+      "6285959823371",
+      "openclaw",
+    ]);
+  });
+
+  it("normalizes JID-like allowFrom entries", () => {
+    expect(
+      resolveChatwootMentionTargets(["6285959823371@c.us", "lid-6285156249703@c.us"]).toSorted(),
+    ).toEqual(["6285156249703", "6285959823371", "openclaw"]);
+  });
+
+  it("deduplicates targets case-insensitively", () => {
+    expect(resolveChatwootMentionTargets(["OpenClaw", "@openclaw", "openclaw"])).toEqual([
+      "openclaw",
+    ]);
   });
 });
