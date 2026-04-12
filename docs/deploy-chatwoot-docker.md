@@ -598,11 +598,126 @@ You should see inbound webhook processing and reply dispatch.
 
 ---
 
-## Phase 6: Session Naming and Verification
+## Phase 6: Group Chat Configuration
+
+By default the bot responds to all messages in group conversations. For groups connected through WAHA (WhatsApp HTTP API), you can require an explicit `@mention` so the bot only responds when addressed directly.
+
+### 6.1 Understanding group policy vs requireMention
+
+| Setting                   | Purpose                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `groupPolicy`             | Controls which groups the bot is allowed to join (`"open"` = all, `"allowlist"` = only listed in `groupAllowFrom`). Default: `"allowlist"`. |
+| `groupAllowFrom`          | Array of group JIDs allowed when `groupPolicy` is `"allowlist"`.                                                                            |
+| `groups.*.requireMention` | When `true`, the bot ignores messages that do not contain an explicit `@mention`.                                                           |
+| `allowFrom`               | Array of sender IDs. Also used by `requireMention` to build the set of recognized mention targets (e.g. `@openclaw`, `@197882716127302`).   |
+
+### 6.2 Enable requireMention for all groups
+
+Edit `config/openclaw.json` and add `groups` and `allowFrom` inside the `channels.chatwoot` block:
+
+```json
+{
+  "channels": {
+    "chatwoot": {
+      "enabled": true,
+      "baseUrl": "https://your-chatwoot-instance.example.com",
+      "apiKey": "YOUR_ACCESS_TOKEN",
+      "accountId": "YOUR_ACCOUNT_ID",
+      "webhookSecret": "YOUR_WEBHOOK_SECRET",
+      "groupPolicy": "open",
+      "allowFrom": ["6285959823371", "197882716127302", "4372444528669"],
+      "groups": {
+        "*": {
+          "requireMention": true
+        }
+      }
+    }
+  }
+}
+```
+
+The wildcard `"*"` applies to all groups. You can also set per-group overrides using the group's conversation ID or JID as the key.
+
+### 6.3 How mention targets are resolved
+
+When `requireMention` is active, the bot builds a list of recognized mention targets from:
+
+1. **Default:** `"openclaw"` (always included)
+2. **`allowFrom` entries:** Each entry is normalized — JIDs like `6285959823371@c.us` become `6285959823371`, LIDs like `197882716127302@lid` become `197882716127302`
+
+A message is considered "mentioned" only when it contains an explicit `@` prefix followed by one of the targets:
+
+| Message content                 | Matched? | Why                                      |
+| ------------------------------- | -------- | ---------------------------------------- |
+| `@openclaw hello`               | Yes      | Matches default target `openclaw`        |
+| `@197882716127302 tolong bantu` | Yes      | Matches numeric LID from `allowFrom`     |
+| `halo openclaw`                 | No       | No `@` prefix — plain word is not enough |
+| `halo cici`                     | No       | No mention at all                        |
+
+> **Tip:** WhatsApp group messages forwarded by WAHA typically mention the bot's LID (e.g. `@197882716127302`). Add that LID to `allowFrom` so it is recognized as a valid mention target.
+
+### 6.4 Per-group overrides
+
+You can override `requireMention` for specific groups:
+
+```json
+{
+  "groups": {
+    "*": {
+      "requireMention": true
+    },
+    "120363407872602773@g.us": {
+      "requireMention": false
+    }
+  }
+}
+```
+
+This enables mentions for all groups except the specific group `120363407872602773@g.us`, where the bot responds to every message.
+
+### 6.5 Verify mention gate in logs
+
+After configuring, send a message in a group **without** mentioning the bot. The logs should show:
+
+```
+[gateway] chatwoot: drop group conversation=1703 (requireMention, not mentioned)
+```
+
+Then send a message **with** `@197882716127302` (or `@openclaw`). The bot should process it normally.
+
+```bash
+sudo docker compose logs -f --tail 50 | grep chatwoot
+```
+
+### 6.6 Per-group tool policies
+
+You can also restrict which tools are available in specific groups:
+
+```json
+{
+  "groups": {
+    "*": {
+      "requireMention": true,
+      "tools": {
+        "deny": ["dangerous_tool"]
+      }
+    },
+    "120363407872602773@g.us": {
+      "tools": {
+        "allow": ["safe_tool_only"]
+      }
+    }
+  }
+}
+```
+
+---
+
+## Phase 7: Session Naming and Verification
 
 The Chatwoot plugin creates descriptive session names using WhatsApp metadata from WAHA (WhatsApp HTTP API). This makes it easy to identify conversations in the Control UI and TUI.
 
-### 6.1 Session name formats
+### 7.1 Session name formats
 
 Session names vary by conversation type:
 
@@ -618,7 +733,7 @@ The plugin detects DM vs group automatically:
 - **DM**: sender has `waha_whatsapp_lid` or `waha_whatsapp_jid` in `custom_attributes`
 - **Fallback**: when no WAHA attributes are present (non-WhatsApp inboxes)
 
-### 6.2 Verify session names via gateway logs
+### 7.2 Verify session names via gateway logs
 
 After deploying, send a WhatsApp message to the bot and check the logs:
 
@@ -640,14 +755,14 @@ For group messages:
 
 If `peer=` still shows the old format (`chatwoot:9:1702`), the updated image has not been deployed yet.
 
-### 6.3 Verify session names in the Control UI
+### 7.3 Verify session names in the Control UI
 
 Open the Control UI at `https://oc.antive.id`. The session dropdown should show the descriptive name:
 
 - `chatwoot:whatsapp-120363407872602773@g.us-Group Test AI (Group)` (group)
 - `chatwoot:whatsapp-4372444528669@lid-6285959823371@c.us-Parkee Frans` (DM)
 
-### 6.4 Verify session names in the TUI
+### 7.4 Verify session names in the TUI
 
 From inside the Docker container:
 
@@ -658,7 +773,7 @@ sudo docker compose exec openclaw-gateway \
 
 The TUI header will show the full session name.
 
-### 6.5 Reset old sessions
+### 7.5 Reset old sessions
 
 Sessions created before the descriptive naming update retain their old labels. To see the new format, reset old sessions and send a new message:
 
@@ -680,7 +795,7 @@ sudo docker compose exec openclaw-gateway \
   openclaw sessions reset --session "agent:main:chatwoot:group:chatwoot:9:1678"
 ```
 
-### 6.6 Verify session files on disk
+### 7.6 Verify session files on disk
 
 Session data is stored inside the container at `~/.openclaw/agents/*/sessions/`:
 
@@ -695,22 +810,51 @@ The `sessions.json` file inside that directory contains session metadata includi
 
 ## Updating
 
-When you rebuild with new changes:
+### Code changes vs config changes
+
+- **Config changes** (editing `config/openclaw.json`) are picked up by hot reload automatically. No container restart needed.
+- **Code changes** (updating webhook logic, mention handling, session naming, etc.) require a full image rebuild and container recreate. Hot reload does **not** apply code changes.
+
+### Full rebuild and deploy
+
+When you rebuild with new code changes:
 
 ```bash
 # On local machine
+cd ~/Documents/github/ai-chat/openclaw
 git pull
+
 DOCKER_BUILDKIT=1 docker build \
   --build-arg OPENCLAW_EXTENSIONS="chatwoot" \
   -t openclaw:chatwoot-latest .
 docker save openclaw:chatwoot-latest | gzip > /tmp/openclaw-chatwoot-latest.tar.gz
 scp /tmp/openclaw-chatwoot-latest.tar.gz sapa-zc:/opt/app/openclaw-dev/
+```
 
+```bash
 # On remote server
 cd /opt/app/openclaw-dev
 sudo docker load < openclaw-chatwoot-latest.tar.gz
-sudo docker compose down
-sudo docker compose up -d
+sudo docker compose up -d --force-recreate --no-deps openclaw-gateway
+```
+
+> **Important:** Use `--force-recreate` to ensure the container uses the new image. A plain `docker compose restart` reuses the old container and will **not** pick up code changes.
+
+### Verify the deployed code
+
+After recreating the container, verify the new code is actually running:
+
+```bash
+# Check that the new image is loaded
+sudo docker images | grep openclaw
+
+# Check the running container uses the latest image
+sudo docker compose ps
+
+# Verify specific code changes are present (example: mention target resolution)
+sudo docker compose exec openclaw-gateway \
+  grep -c "resolveChatwootMentionTargets" dist/extensions/chatwoot/src/webhook.js
+# Expected: 1+ (non-zero means the new code is deployed)
 ```
 
 ---
@@ -824,7 +968,7 @@ OpenClaw uses 18789 by default. Change `OPENCLAW_GATEWAY_PORT` in `.env` if need
 
 **Control UI shows `chatwoot:g-9-1678` instead of descriptive name:**
 
-Sessions created before the descriptive naming update retain their old labels. Reset the old session and send a new message (see Phase 6.5).
+Sessions created before the descriptive naming update retain their old labels. Reset the old session and send a new message (see Phase 7.5).
 
 **Log shows `peer=chatwoot:9:1702` instead of descriptive name:**
 
