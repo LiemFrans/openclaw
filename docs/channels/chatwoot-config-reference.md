@@ -1,0 +1,1001 @@
+# Chatwoot Channel Configuration Reference
+
+Complete reference for all `channels.chatwoot` configuration settings in OpenClaw, with examples and usage patterns.
+
+All settings live under the `channels.chatwoot` key in `openclaw.json` (JSON5 format). Connection credentials can also be set via environment variables.
+
+---
+
+## Table of Contents
+
+- [Connection Settings](#connection-settings)
+- [Access Control](#access-control)
+- [Delivery](#delivery)
+- [Reactions](#reactions)
+- [Media](#media)
+- [Session and History](#session-and-history)
+- [Account Management](#account-management)
+- [Multi-Account](#multi-account)
+- [Actions and Tools](#actions-and-tools)
+- [Advanced / Operational](#advanced--operational)
+- [Environment Variables](#environment-variables)
+- [Validation Rules](#validation-rules)
+- [Full Configuration Examples](#full-configuration-examples)
+- [Usage Patterns](#usage-patterns)
+- [Settings Quick Reference](#settings-quick-reference)
+
+---
+
+## Connection Settings
+
+These are required for the Chatwoot channel to function. They connect OpenClaw to your Chatwoot instance.
+
+### `baseUrl`
+
+The URL of your Chatwoot instance.
+
+- **Type:** `string`
+- **Required:** Yes
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://app.chatwoot.com",
+    },
+  },
+}
+```
+
+For self-hosted Chatwoot, use your own domain:
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://chatwoot.yourcompany.com",
+    },
+  },
+}
+```
+
+### `apiKey`
+
+Chatwoot API access token. This is the **Agent Bot access token** generated in your Chatwoot instance under Settings > Applications > Agent Bot.
+
+- **Type:** `string`
+- **Required:** Yes
+
+### `accountId`
+
+Your Chatwoot account ID. Found in the URL when logged into Chatwoot (e.g., `https://app.chatwoot.com/app/accounts/1/...` — the account ID is `1`).
+
+- **Type:** `string`
+- **Required:** Yes
+
+### `webhookSecret`
+
+Secret token used to verify incoming webhook signatures from Chatwoot. Set the same value in both OpenClaw config and Chatwoot webhook settings.
+
+- **Type:** `string`
+- **Required:** Recommended (for security)
+
+---
+
+## Access Control
+
+### `dmPolicy`
+
+Controls who can interact with the bot through Chatwoot conversations.
+
+| Value         | Description                                                    | Default |
+| ------------- | -------------------------------------------------------------- | ------- |
+| `"open"`      | All incoming conversations are accepted                        | **Yes** |
+| `"pairing"`   | Only paired users can chat (pairing via `/pair` or onboarding) |         |
+| `"allowlist"` | Only senders in `allowFrom` can chat                           |         |
+| `"disabled"`  | Block all incoming messages                                    |         |
+
+The default is `"open"` (unlike WhatsApp which defaults to `"pairing"`), because Chatwoot already manages inbox access control, agent assignments, and conversation routing on its own. OpenClaw trusts Chatwoot's access layer.
+
+### `allowFrom`
+
+Array of allowed sender identifiers. Accepts Chatwoot contact IDs (numbers) or phone numbers (strings). Only relevant when `dmPolicy` is `"allowlist"`.
+
+- **Type:** `(string | number)[]`
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "allowlist",
+      allowFrom: [42, 108, "+628123456789"],
+    },
+  },
+}
+```
+
+### `defaultTo`
+
+Default delivery target for CLI `openclaw message send --deliver` when no explicit `--reply-to` is provided.
+
+- **Type:** `string`
+
+### `selfChatMode`
+
+When `true`, the bot treats messages from its own number/identity as user messages. This is a safeguard for scenarios where the bot is running on a personal account. Prevents the bot from replying to itself in an infinite loop.
+
+- **Type:** `boolean`
+- **Default:** not set
+
+### `groupPolicy`
+
+Controls how the bot handles group conversations.
+
+| Value         | Description                                      | Default |
+| ------------- | ------------------------------------------------ | ------- |
+| `"allowlist"` | Only groups listed in `groups` get bot responses | **Yes** |
+| `"open"`      | All group conversations are accepted             |         |
+| `"disabled"`  | Block all group messages                         |         |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      groupPolicy: "allowlist",
+    },
+  },
+}
+```
+
+### `groupAllowFrom`
+
+Array of allowed sender identifiers for group contexts. Only relevant when the bot is participating in group conversations.
+
+- **Type:** `(string | number)[]`
+
+### `groups`
+
+Per-group configuration overrides, keyed by group identifier. Each group entry can override tool access and mention behavior.
+
+- **Type:** `Record<string, GroupEntry>`
+
+Each group entry supports:
+
+| Field            | Type                     | Description                     |
+| ---------------- | ------------------------ | ------------------------------- |
+| `requireMention` | `boolean`                | Only respond when @mentioned    |
+| `tools`          | `string` enum            | Tool access policy              |
+| `toolsBySender`  | `Record<string, string>` | Per-sender tool policy in group |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      groupPolicy: "allowlist",
+      groups: {
+        "support-team": {
+          requireMention: true,
+          tools: "enabled",
+        },
+      },
+    },
+  },
+}
+```
+
+### `contextVisibility`
+
+Controls how supplemental context (tool results, system messages) is presented in conversations.
+
+| Value       | Description                                          |
+| ----------- | ---------------------------------------------------- |
+| `"full"`    | Show all context including tool calls and results    |
+| `"minimal"` | Show only essential context                          |
+| `"hidden"`  | Hide supplemental context from the conversation view |
+
+- **Type:** `string` enum
+- **Default:** not set
+
+---
+
+## Delivery
+
+### `blockStreaming`
+
+Disable streaming/block delivery for this channel. When `true`, OpenClaw waits for the full response to be generated before sending it as a single message, rather than streaming partial blocks.
+
+- **Type:** `boolean`
+- **Default:** not set (streaming behavior depends on gateway defaults)
+
+This is useful when you want cleaner message delivery in Chatwoot — a single complete message instead of multiple streamed fragments.
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      blockStreaming: true,
+    },
+  },
+}
+```
+
+### `blockStreamingCoalesce`
+
+Merge streamed block replies before sending. When block streaming is active, this controls how streamed fragments are coalesced into chunks.
+
+- **Type:** `object`
+- **Default:** not set
+
+| Sub-field  | Type     | Description                                         |
+| ---------- | -------- | --------------------------------------------------- |
+| `minChars` | `number` | Minimum characters before sending a coalesced chunk |
+| `maxChars` | `number` | Maximum characters per coalesced chunk              |
+| `idleMs`   | `number` | Idle time (ms) before flushing a partial chunk      |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      blockStreamingCoalesce: {
+        minChars: 100,
+        maxChars: 2000,
+        idleMs: 500,
+      },
+    },
+  },
+}
+```
+
+### `textChunkLimit`
+
+Maximum characters per outbound text chunk. Messages longer than this are split into multiple chunks.
+
+- **Type:** `number` (positive integer)
+- **Default:** not set (platform default, typically 4000)
+
+### `chunkMode`
+
+Controls how long messages are split into chunks.
+
+| Value       | Description                        |
+| ----------- | ---------------------------------- |
+| `"length"`  | Split by character count (default) |
+| `"newline"` | Split on newline boundaries        |
+
+- **Type:** `string` enum
+
+### `debounceMs`
+
+Debounce window in milliseconds for batching rapid consecutive inbound messages from the same sender. When a message arrives, OpenClaw waits this long for additional messages before processing.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** `0` (no debounce)
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      debounceMs: 1500,
+    },
+  },
+}
+```
+
+### `sendReadReceipts`
+
+Send read receipts for incoming messages.
+
+- **Type:** `boolean`
+- **Default:** not set
+
+### `messagePrefix`
+
+Override the prefix prepended to inbound messages before they are sent to the model.
+
+- **Type:** `string`
+
+### `responsePrefix`
+
+Override the prefix prepended to outbound responses.
+
+- **Type:** `string`
+
+---
+
+## Reactions
+
+### `reactionLevel`
+
+Controls the verbosity of emoji reactions the bot sends on messages.
+
+| Value         | Description                                         |
+| ------------- | --------------------------------------------------- |
+| `"off"`       | No reactions                                        |
+| `"ack"`       | Acknowledgment reaction only (processing indicator) |
+| `"minimal"`   | Acknowledge + key status reactions                  |
+| `"extensive"` | React to most events                                |
+
+- **Type:** `string` enum
+- **Default:** not set
+
+### `ackReaction`
+
+Configuration for the acknowledgment reaction sent when the bot starts processing a message.
+
+- **Type:** `object`
+- **Default:** `{ direct: true, group: "mentions" }`
+
+| Sub-field | Type                                  | Default      | Description                                   |
+| --------- | ------------------------------------- | ------------ | --------------------------------------------- |
+| `emoji`   | `string`                              | —            | Emoji to use (e.g., `"👀"`). Empty = disabled |
+| `direct`  | `boolean`                             | `true`       | Send ack reaction in direct chats             |
+| `group`   | `"always"` / `"mentions"` / `"never"` | `"mentions"` | When to react in group chats                  |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      reactionLevel: "ack",
+      ackReaction: {
+        emoji: "👀",
+        direct: true,
+        group: "mentions",
+      },
+    },
+  },
+}
+```
+
+---
+
+## Media
+
+### `mediaMaxMb`
+
+Maximum media file size in megabytes. Files exceeding this limit are rejected.
+
+- **Type:** `number` (positive)
+- **Default:** `50`
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      mediaMaxMb: 25,
+    },
+  },
+}
+```
+
+---
+
+## Session and History
+
+### `historyLimit`
+
+Maximum number of group messages buffered for context. Controls how many recent messages are included when building conversation context for the model.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** not set
+
+### `dmHistoryLimit`
+
+Maximum number of DM turns for history context.
+
+- **Type:** `number` (non-negative integer)
+- **Default:** not set
+
+### `dms`
+
+Per-DM configuration overrides, keyed by user/contact identifier. Each entry supports a subset of DM-specific settings.
+
+- **Type:** `Record<string, DmConfig>`
+
+Each DM entry supports:
+
+| Field          | Type     | Description            |
+| -------------- | -------- | ---------------------- |
+| `historyLimit` | `number` | Override history limit |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      historyLimit: 50,
+      dmHistoryLimit: 30,
+      dms: {
+        "user-42": { historyLimit: 100 },
+      },
+    },
+  },
+}
+```
+
+---
+
+## Account Management
+
+### `name`
+
+Display name for this Chatwoot account, shown in CLI and UI lists.
+
+- **Type:** `string`
+
+### `enabled`
+
+Enable or disable this Chatwoot account. Set to `false` to temporarily disable without removing the configuration.
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+---
+
+## Multi-Account
+
+OpenClaw supports connecting to multiple Chatwoot instances or accounts simultaneously.
+
+### `accounts`
+
+Per-account Chatwoot configurations, keyed by a custom account ID. Each account entry supports all settings from the base config (`baseUrl`, `apiKey`, `accountId`, `webhookSecret`, `dmPolicy`, `allowFrom`, `defaultTo`, `blockStreaming`, `name`, `enabled`).
+
+### `defaultAccount`
+
+Account ID to use as the default when multiple accounts are configured.
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      defaultAccount: "production",
+      accounts: {
+        production: {
+          name: "Production Chatwoot",
+          baseUrl: "https://chatwoot.yourcompany.com",
+          apiKey: "prod-api-key",
+          accountId: "1",
+          webhookSecret: "prod-secret",
+        },
+        staging: {
+          name: "Staging Chatwoot",
+          baseUrl: "https://chatwoot-staging.yourcompany.com",
+          apiKey: "staging-api-key",
+          accountId: "1",
+          webhookSecret: "staging-secret",
+        },
+      },
+    },
+  },
+}
+```
+
+---
+
+## Actions and Tools
+
+These settings control what the agent is allowed to do in conversations. They are root-level only (not per-account).
+
+### `actions`
+
+Per-action gating for agent tools.
+
+- **Type:** `object`
+- **Scope:** root only
+
+| Sub-field     | Type      | Description                         |
+| ------------- | --------- | ----------------------------------- |
+| `reactions`   | `boolean` | Allow agent to send emoji reactions |
+| `sendMessage` | `boolean` | Allow agent to send messages        |
+| `polls`       | `boolean` | Allow agent to create polls         |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      actions: {
+        reactions: true,
+        sendMessage: true,
+        polls: false,
+      },
+    },
+  },
+}
+```
+
+### `configWrites`
+
+Allow the agent to modify configuration from within a chat conversation.
+
+- **Type:** `boolean`
+- **Default:** not set
+- **Scope:** root only
+
+---
+
+## Advanced / Operational
+
+### `capabilities`
+
+Provider capability tags for this channel. Used to signal what the channel supports to the model provider.
+
+- **Type:** `string[]`
+- **Default:** not set
+
+### `markdown`
+
+Markdown formatting overrides for this channel.
+
+- **Type:** `object`
+
+| Sub-field | Type     | Description                                           |
+| --------- | -------- | ----------------------------------------------------- |
+| `tables`  | `string` | Table rendering mode (`off`/`bullets`/`code`/`block`) |
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      markdown: {
+        tables: "bullets",
+      },
+    },
+  },
+}
+```
+
+### `heartbeat`
+
+Heartbeat visibility settings. Controls whether heartbeat status information is shown.
+
+- **Type:** `object`
+
+| Sub-field      | Type      | Description                            |
+| -------------- | --------- | -------------------------------------- |
+| `showOk`       | `boolean` | Show "OK" heartbeat status             |
+| `showAlerts`   | `boolean` | Show heartbeat alert messages          |
+| `useIndicator` | `boolean` | Use an indicator for heartbeat display |
+
+### `healthMonitor`
+
+Channel health monitor configuration.
+
+- **Type:** `object`
+
+| Sub-field | Type      | Description               |
+| --------- | --------- | ------------------------- |
+| `enabled` | `boolean` | Enable the health monitor |
+
+---
+
+## Environment Variables
+
+Connection settings can also be configured via environment variables. These are useful for Docker deployments or CI environments where you do not want secrets in config files.
+
+| Environment Variable      | Maps to         | Description                |
+| ------------------------- | --------------- | -------------------------- |
+| `CHATWOOT_BASE_URL`       | `baseUrl`       | Chatwoot instance URL      |
+| `CHATWOOT_API_KEY`        | `apiKey`        | Agent Bot API access token |
+| `CHATWOOT_ACCOUNT_ID`     | `accountId`     | Chatwoot account ID        |
+| `CHATWOOT_WEBHOOK_SECRET` | `webhookSecret` | Webhook signature secret   |
+
+Config file values take precedence over environment variables when both are set.
+
+---
+
+## Validation Rules
+
+1. **`dmPolicy` defaults to `"open"`** — Chatwoot manages its own inbox access, so OpenClaw trusts all incoming conversations by default.
+2. **`accountId` must be a string** — even though Chatwoot uses numeric IDs, the config accepts it as a string.
+3. **`allowFrom` accepts mixed types** — both string (phone numbers) and number (Chatwoot contact IDs) are valid in the same array.
+4. **Schema is strict** — unknown properties are rejected. Only the documented fields are accepted.
+
+---
+
+## Full Configuration Examples
+
+### Example 1: Basic Single-Instance Setup
+
+The simplest configuration to connect OpenClaw to a single Chatwoot instance. Suitable for a small team or personal use.
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://app.chatwoot.com",
+      apiKey: "your-agent-bot-api-key",
+      accountId: "1",
+      webhookSecret: "your-webhook-secret",
+      dmPolicy: "open",
+      blockStreaming: true,
+    },
+  },
+}
+```
+
+**What this does:**
+
+- Connects to the Chatwoot cloud instance
+- Accepts all incoming conversations (Chatwoot manages access)
+- Sends complete messages instead of streaming fragments
+- Webhook payloads are verified with the shared secret
+
+---
+
+### Example 2: Restricted Access with Allowlist
+
+When you want OpenClaw to only respond to specific contacts, even though Chatwoot routes all conversations to the agent bot.
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://chatwoot.yourcompany.com",
+      apiKey: "your-agent-bot-api-key",
+      accountId: "1",
+      webhookSecret: "your-webhook-secret",
+      dmPolicy: "allowlist",
+      allowFrom: [
+        42, // Contact ID: VIP Customer
+        108, // Contact ID: Engineering Lead
+        "+628123456789", // Phone number: Support Manager
+      ],
+    },
+  },
+}
+```
+
+**What this does:**
+
+- Only conversations from the three listed contacts get AI responses
+- Other conversations are received by Chatwoot but silently ignored by OpenClaw
+- Useful for gradual AI rollout — start with a few contacts, then expand
+
+---
+
+### Example 3: Self-Hosted Multi-Account (Production + Staging)
+
+Run two Chatwoot connections from a single OpenClaw gateway, each with independent settings.
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      defaultAccount: "prod",
+      accounts: {
+        prod: {
+          name: "Production",
+          enabled: true,
+          baseUrl: "https://chatwoot.yourcompany.com",
+          apiKey: "prod-api-key",
+          accountId: "1",
+          webhookSecret: "prod-webhook-secret",
+          dmPolicy: "open",
+          blockStreaming: true,
+        },
+        staging: {
+          name: "Staging",
+          enabled: true,
+          baseUrl: "https://chatwoot-staging.yourcompany.com",
+          apiKey: "staging-api-key",
+          accountId: "1",
+          webhookSecret: "staging-webhook-secret",
+          dmPolicy: "allowlist",
+          allowFrom: [1, 2, 3], // QA team contact IDs
+          blockStreaming: false,
+        },
+      },
+    },
+  },
+}
+```
+
+**What this does:**
+
+- Production account accepts all conversations with block delivery
+- Staging account is restricted to QA team contacts with streaming enabled
+- Default account is `prod` — used by CLI commands when no account is specified
+- Each account has its own Chatwoot instance, API key, and webhook secret
+
+---
+
+### Example 4: Docker Deployment with Environment Variables
+
+For Docker or containerized deployments where secrets should not be in config files.
+
+**docker-compose.yml:**
+
+```yaml
+services:
+  openclaw:
+    image: openclaw:latest
+    environment:
+      - CHATWOOT_BASE_URL=https://chatwoot.yourcompany.com
+      - CHATWOOT_API_KEY=your-agent-bot-api-key
+      - CHATWOOT_ACCOUNT_ID=1
+      - CHATWOOT_WEBHOOK_SECRET=your-webhook-secret
+    ports:
+      - "18789:18789"
+```
+
+**openclaw.json (minimal, non-secret settings only):**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "open",
+      blockStreaming: true,
+    },
+  },
+}
+```
+
+**What this does:**
+
+- Connection credentials are injected via environment variables (not stored in config files)
+- Non-secret channel behavior settings remain in `openclaw.json`
+- Secrets can be managed via Docker secrets, `.env` files, or orchestrator secret stores
+
+---
+
+## Usage Patterns
+
+### Pattern 1: Quick Start — Connect Chatwoot Agent Bot to OpenClaw
+
+**Scenario:** You have a running Chatwoot instance and want to add AI-powered auto-replies via OpenClaw.
+
+**Step 1: Create an Agent Bot in Chatwoot**
+
+1. Log into your Chatwoot dashboard
+2. Go to **Settings > Applications > Agent Bot**
+3. Create a new agent bot and note the **API access token**
+4. Note your **Account ID** from the URL (e.g., `/app/accounts/1/...`)
+
+**Step 2: Configure OpenClaw**
+
+```json5
+// openclaw.json
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://app.chatwoot.com",
+      apiKey: "your-agent-bot-access-token",
+      accountId: "1",
+      webhookSecret: "a-random-secret-string",
+      blockStreaming: true,
+    },
+  },
+}
+```
+
+**Step 3: Set up the webhook in Chatwoot**
+
+1. Go to **Settings > Integrations > Webhooks** in Chatwoot
+2. Add a new webhook:
+   - **URL:** `https://your-openclaw-host:18789/chatwoot/webhook`
+   - **Events:** `message_created`
+3. Set the same `webhookSecret` in both Chatwoot and OpenClaw
+
+**Step 4: Assign the agent bot to an inbox**
+
+1. Go to **Settings > Inboxes** in Chatwoot
+2. Select the inbox you want the AI bot to handle
+3. Under **Agent Bot**, assign the bot you created in Step 1
+
+**Step 5: Verify**
+
+```bash
+openclaw channels status --probe
+```
+
+Messages in the assigned inbox will now get AI-powered responses.
+
+---
+
+### Pattern 2: Gradual AI Rollout with Allowlist
+
+**Scenario:** You want to test AI responses with a small group before enabling for all customers.
+
+**Phase 1: Start with internal contacts only**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      baseUrl: "https://chatwoot.yourcompany.com",
+      apiKey: "your-api-key",
+      accountId: "1",
+      webhookSecret: "your-secret",
+      dmPolicy: "allowlist",
+      allowFrom: [
+        10, // Internal test contact
+        11, // QA team contact
+      ],
+    },
+  },
+}
+```
+
+Only contacts with Chatwoot ID 10 and 11 get AI responses. All others are ignored.
+
+**Phase 2: Expand to VIP customers**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "allowlist",
+      allowFrom: [
+        10,
+        11, // Internal
+        42,
+        55,
+        78, // VIP customers
+        "+628123456789", // Key account manager
+      ],
+    },
+  },
+}
+```
+
+**Phase 3: Open to everyone**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "open",
+    },
+  },
+}
+```
+
+Remove `allowFrom` entirely — all conversations are now handled by the AI.
+
+---
+
+### Pattern 3: Temporarily Disable the AI Bot
+
+**Scenario:** You need to pause AI auto-replies during a maintenance window or incident without removing the configuration.
+
+**Option A: Disable at channel level**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      enabled: false,
+      // ... rest of config unchanged
+    },
+  },
+}
+```
+
+**Option B: Disable DM processing entirely**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "disabled",
+      // ... rest of config unchanged
+    },
+  },
+}
+```
+
+**Option C: Disable a specific account in multi-account setup**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      accounts: {
+        prod: {
+          enabled: false, // Paused
+          // ... rest unchanged
+        },
+        staging: {
+          enabled: true, // Still running
+          // ...
+        },
+      },
+    },
+  },
+}
+```
+
+All three options are reversible — just set back to `true` / `"open"` and restart.
+
+---
+
+### Pattern 4: Separate Secrets from Config (Production Best Practice)
+
+**Scenario:** You want to keep credentials out of version-controlled config files.
+
+**Use environment variables for secrets:**
+
+```bash
+export CHATWOOT_BASE_URL="https://chatwoot.yourcompany.com"
+export CHATWOOT_API_KEY="your-secret-api-key"
+export CHATWOOT_ACCOUNT_ID="1"
+export CHATWOOT_WEBHOOK_SECRET="your-webhook-secret"
+```
+
+**Keep only behavior settings in openclaw.json:**
+
+```json5
+{
+  channels: {
+    chatwoot: {
+      dmPolicy: "open",
+      blockStreaming: true,
+      name: "Customer Support Bot",
+    },
+  },
+}
+```
+
+**For Docker Compose with an `.env` file:**
+
+```bash
+# .env
+CHATWOOT_BASE_URL=https://chatwoot.yourcompany.com
+CHATWOOT_API_KEY=your-secret-api-key
+CHATWOOT_ACCOUNT_ID=1
+CHATWOOT_WEBHOOK_SECRET=your-webhook-secret
+```
+
+```yaml
+# docker-compose.yml
+services:
+  openclaw:
+    image: openclaw:latest
+    env_file: .env
+    ports:
+      - "18789:18789"
+```
+
+This keeps secrets out of `openclaw.json` while still allowing non-secret behavior settings to be version-controlled.
+
+---
+
+## Settings Quick Reference
+
+| Setting                  | Type                       | Default       | Scope            | Description                                                |
+| ------------------------ | -------------------------- | ------------- | ---------------- | ---------------------------------------------------------- |
+| `baseUrl`                | `string`                   | —             | channel, account | Chatwoot instance URL                                      |
+| `apiKey`                 | `string`                   | —             | channel, account | Agent Bot API access token                                 |
+| `accountId`              | `string`                   | —             | channel, account | Chatwoot account ID                                        |
+| `webhookSecret`          | `string`                   | —             | channel, account | Webhook signature verification secret                      |
+| `dmPolicy`               | `string` enum              | `"open"`      | channel, account | DM access policy (`open`/`pairing`/`allowlist`/`disabled`) |
+| `allowFrom`              | `(string \| number)[]`     | —             | channel, account | Allowed sender IDs (contact IDs or phone numbers)          |
+| `defaultTo`              | `string`                   | —             | channel, account | Default CLI delivery target                                |
+| `selfChatMode`           | `boolean`                  | —             | channel, account | Treat own messages as user messages                        |
+| `groupPolicy`            | `string` enum              | `"allowlist"` | channel, account | Group access policy (`allowlist`/`open`/`disabled`)        |
+| `groupAllowFrom`         | `(string \| number)[]`     | —             | channel, account | Allowed sender IDs in group contexts                       |
+| `groups`                 | `Record<string, Group>`    | —             | channel, account | Per-group config (mention, tools)                          |
+| `contextVisibility`      | `string` enum              | —             | channel, account | Supplemental context visibility policy                     |
+| `blockStreaming`         | `boolean`                  | —             | channel, account | Disable streaming, send full responses                     |
+| `blockStreamingCoalesce` | `object`                   | —             | channel, account | Merge streamed block replies before sending                |
+| `textChunkLimit`         | `number`                   | —             | channel, account | Max characters per outbound text chunk                     |
+| `chunkMode`              | `string` enum              | —             | channel, account | Chunking mode (`length`/`newline`)                         |
+| `debounceMs`             | `number`                   | `0`           | channel, account | Debounce window (ms) for batching inbound messages         |
+| `sendReadReceipts`       | `boolean`                  | —             | channel, account | Send read receipts for incoming messages                   |
+| `messagePrefix`          | `string`                   | —             | channel, account | Inbound message prefix override                            |
+| `responsePrefix`         | `string`                   | —             | channel, account | Outbound response prefix override                          |
+| `reactionLevel`          | `string` enum              | —             | channel, account | Reaction verbosity (`off`/`ack`/`minimal`/`extensive`)     |
+| `ackReaction`            | `object`                   | see below     | channel, account | Acknowledgment reaction config                             |
+| `mediaMaxMb`             | `number`                   | `50`          | channel, account | Max media file size in MB                                  |
+| `historyLimit`           | `number`                   | —             | channel, account | Max group messages buffered for context                    |
+| `dmHistoryLimit`         | `number`                   | —             | channel, account | Max DM turns for history context                           |
+| `dms`                    | `Record<string, DmConfig>` | —             | channel, account | Per-DM config overrides                                    |
+| `name`                   | `string`                   | —             | channel, account | Display name for CLI/UI                                    |
+| `enabled`                | `boolean`                  | `true`        | channel, account | Enable/disable this account                                |
+| `accounts`               | `Record<string, Account>`  | —             | channel only     | Per-account configurations                                 |
+| `defaultAccount`         | `string`                   | —             | channel only     | Default account ID for multi-account                       |
+| `actions`                | `object`                   | —             | channel only     | Action gating (reactions, sendMessage, polls)              |
+| `configWrites`           | `boolean`                  | —             | channel only     | Allow config writes from chat                              |
+| `capabilities`           | `string[]`                 | —             | channel, account | Provider capability tags                                   |
+| `markdown`               | `object`                   | —             | channel, account | Markdown formatting overrides                              |
+| `heartbeat`              | `object`                   | —             | channel, account | Heartbeat visibility settings                              |
+| `healthMonitor`          | `object`                   | —             | channel, account | Channel health monitor config                              |
