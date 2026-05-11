@@ -518,7 +518,7 @@ export async function handleChatwootWebhook(
 
   // Only process message_created events
   if (payload.event !== "message_created") {
-    respondJson(res, 200, { status: "ignored", reason: `event: ${String(payload.event)}` });
+    respondJson(res, 200, { status: "ignored", reason: `event: ${payload.event}` });
     return true;
   }
 
