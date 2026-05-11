@@ -7,6 +7,11 @@ export const splitChannelExtensionShardSpecs = [
     config: "test/vitest/vitest.extension-discord.config.ts",
   },
   {
+    id: "chatwoot",
+    kind: "extensionChatwoot",
+    config: "test/vitest/vitest.extension-chatwoot.config.ts",
+  },
+  {
     id: "slack",
     kind: "extensionSlack",
     config: "test/vitest/vitest.extension-slack.config.ts",
