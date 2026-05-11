@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { safeEqualSecret } from "openclaw/plugin-sdk/browser-security-runtime";
 import { normalizeAllowFromList } from "openclaw/plugin-sdk/channel-policy";
 import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
 import { deliverFormattedTextWithAttachments } from "openclaw/plugin-sdk/reply-payload";
+import { safeEqualSecret } from "openclaw/plugin-sdk/security-runtime";
 import {
   readRequestBodyWithLimit,
   isRequestBodyLimitError,
