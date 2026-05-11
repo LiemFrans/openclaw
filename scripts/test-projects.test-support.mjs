@@ -75,6 +75,7 @@ const EXTENSION_ACPX_VITEST_CONFIG = "test/vitest/vitest.extension-acpx.config.t
 const EXTENSION_BLUEBUBBLES_VITEST_CONFIG = "test/vitest/vitest.extension-bluebubbles.config.ts";
 const EXTENSION_BROWSER_VITEST_CONFIG = "test/vitest/vitest.extension-browser.config.ts";
 const EXTENSION_CHANNELS_VITEST_CONFIG = "test/vitest/vitest.extension-channels.config.ts";
+const EXTENSION_CHATWOOT_VITEST_CONFIG = "test/vitest/vitest.extension-chatwoot.config.ts";
 const EXTENSION_DIFFS_VITEST_CONFIG = "test/vitest/vitest.extension-diffs.config.ts";
 const EXTENSION_DISCORD_VITEST_CONFIG = "test/vitest/vitest.extension-discord.config.ts";
 const EXTENSION_FEISHU_VITEST_CONFIG = "test/vitest/vitest.extension-feishu.config.ts";
@@ -157,6 +158,7 @@ const VITEST_CONFIG_BY_KIND = {
   extensionAcpx: EXTENSION_ACPX_VITEST_CONFIG,
   extensionBlueBubbles: EXTENSION_BLUEBUBBLES_VITEST_CONFIG,
   extensionBrowser: EXTENSION_BROWSER_VITEST_CONFIG,
+  extensionChatwoot: EXTENSION_CHATWOOT_VITEST_CONFIG,
   extensionChannel: EXTENSION_CHANNELS_VITEST_CONFIG,
   extensionDiffs: EXTENSION_DIFFS_VITEST_CONFIG,
   extensionDiscord: EXTENSION_DISCORD_VITEST_CONFIG,
@@ -1294,6 +1296,7 @@ export function buildVitestRunPlans(
     "extensionDiffs",
     "extensionBlueBubbles",
     "extensionBrowser",
+    "extensionChatwoot",
     "extensionDiscord",
     "extensionFeishu",
     "extensionImessage",
